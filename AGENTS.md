@@ -19,7 +19,7 @@ You are helping a person, often not technical, set up Oura stress alerts on Tele
 3. **Get the code** into a permanent folder, for example `git clone https://github.com/fkb032/oura-stress-telegram.git ~/oura-stress-telegram`. Avoid temporary folders.
 4. **Explain what is coming**, in plain words:
    - They will create a Telegram bot with @BotFather and send it a pairing code.
-   - They will register a free application at https://cloud.ouraring.com/oauth/applications with the Redirect URI exactly `http://localhost:8765/callback`, then copy its Client ID and Client Secret.
+   - They will register a free application at https://developer.ouraring.com/applications with the Redirect URI exactly `http://localhost:8765/callback`, then copy its Client ID and Client Secret.
    - They will log in to Oura in the browser and press Allow.
 5. **Have them run setup in their own terminal:**
 

@@ -739,6 +739,26 @@ class ReviewFixTests(Base):
                 self.assertEqual(ost.python_path(), "/usr/bin/python3")
 
 
+class SetupGuidanceTests(Base):
+    def test_new_app_setup_uses_current_registration_portal(self):
+        config = {}
+        with mock.patch.dict(os.environ, {"OURA_CLIENT_ID": "new-client-id",
+                                          "OURA_CLIENT_SECRET": "new-client-secret"}), \
+                mock.patch.object(ost, "connect_oura") as connect:
+            ost.setup_oura(self.paths, config)
+        output = self.stdout.getvalue()
+        self.assertIn("https://developer.ouraring.com/applications", output)
+        self.assertNotIn("https://cloud.ouraring.com/oauth/applications", output)
+        self.assertIn("http://localhost:8765/callback", output)
+        self.assertNotIn("new-client-secret", output)
+        self.assertEqual(ost.load_config(self.paths)["oura_client_id"], "new-client-id")
+        connect.assert_called_once_with(self.paths, config)
+
+    def test_rejected_app_keys_link_to_current_portal(self):
+        self.assertIn("https://developer.ouraring.com/applications",
+                      ost.reconnect_notice(self.paths, action="setup"))
+
+
 class OAuthTests(unittest.TestCase):
     def test_pkce_pair(self):
         verifier, challenge = ost.pkce_pair()

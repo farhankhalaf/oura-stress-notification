@@ -46,7 +46,7 @@ VERSION = "0.1.0"
 SCRIPT_NAME = "oura_stress_telegram.py"
 PROJECT_URL = "https://github.com/fkb032/oura-stress-telegram"
 
-OURA_APPS_URL = "https://cloud.ouraring.com/oauth/applications"
+OURA_APPS_URL = "https://developer.ouraring.com/applications"
 OURA_AUTHORIZE_URL = "https://cloud.ouraring.com/oauth/authorize"
 OURA_TOKEN_URL = "https://api.ouraring.com/oauth/token"
 OURA_STRESS_URL = "https://api.ouraring.com/v2/usercollection/daily_stress"
@@ -587,7 +587,7 @@ def in_quiet_hours(now: dt.time, start: str, end: str) -> bool:
 # --------------------------------------------------------------------------
 
 def reconnect_notice(paths: Paths, action: str = "connect-oura") -> str:
-    what = ("the saved Oura app keys (check your app at cloud.ouraring.com, then enter "
+    what = (f"the saved Oura app keys (check your app at {OURA_APPS_URL}, then enter "
             "its Client ID and Secret again)" if action == "setup" else "the saved login")
     return ("\u26A0\uFE0F <b>Oura stress alerts are paused:</b> Oura no longer accepts "
             f"{what}.\n\nTo fix it, run this on your computer:\n"

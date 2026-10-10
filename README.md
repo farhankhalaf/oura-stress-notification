@@ -73,7 +73,7 @@ python3 oura_stress_telegram.py setup
 Setup walks you through three parts:
 
 - **Telegram.** In Telegram, message **@BotFather**, send `/newbot`, choose a name and a username ending in `bot`. Paste the token it gives you into setup. Then open your new bot, press **Start**, and send it the 6 character pairing code that setup shows you.
-- **Oura.** Go to [cloud.ouraring.com/oauth/applications](https://cloud.ouraring.com/oauth/applications), log in, and create a new application. Any name works. Set the **Redirect URI** to exactly:
+- **Oura.** Go to [developer.ouraring.com/applications](https://developer.ouraring.com/applications), log in, and create a new application. Any name works. Set the **Redirect URI** to exactly:
 
   ```text
   http://localhost:8765/callback
@@ -138,7 +138,7 @@ python3 oura_stress_telegram.py settings --min-increase 15
 - Your Telegram bot token, Oura app keys and Oura login are saved in `~/.config/oura-stress-telegram/`, readable only by your user account.
 - The program only asks Oura for **daily** data and only reads the daily stress summary.
 - Telegram messages pass through Telegram's servers like any bot message. Alerts contain only minutes of stress. Problem notices also include the error and the command to run, which shows folder paths on your computer.
-- To remove everything: run `uninstall --delete-data`, delete your application at [cloud.ouraring.com/oauth/applications](https://cloud.ouraring.com/oauth/applications), and delete the bot by sending `/deletebot` to @BotFather.
+- To remove everything: run `uninstall --delete-data`, delete your application at [developer.ouraring.com/applications](https://developer.ouraring.com/applications), and delete the bot by sending `/deletebot` to @BotFather.
 
 ## Project status
 
