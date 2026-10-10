@@ -16,6 +16,7 @@ import datetime as dt
 import getpass
 import hashlib
 import html
+import http.client
 import http.server
 import json
 import os
@@ -107,11 +108,16 @@ class RateLimited(OuraError):
 
 
 class ReconnectNeeded(AppError):
-    """Oura no longer accepts our login. Only `connect-oura` can fix it."""
+    """Oura no longer accepts our login. `action` is the command that fixes it:
+    connect-oura for an expired login, setup when the Oura app keys are rejected."""
+
+    def __init__(self, message: str, action: str = "connect-oura"):
+        super().__init__(message)
+        self.action = action
 
 
-class RunTimeout(AppError):
-    pass
+class RunTimeout(Exception):
+    """Not an AppError, so no handler inside a check swallows it and keeps working."""
 
 
 _SECRETS = set()
@@ -283,7 +289,18 @@ def installed_script_path() -> Path:
 
 
 def python_path() -> str:
-    return str(Path(sys.executable).resolve()) if sys.executable else "python3"
+    """The interpreter the background job should use.
+
+    Keep symlinks: a resolved Homebrew path points into a versioned folder that is
+    deleted on upgrade. Apple's developer-tools Python is reached through the
+    /usr/bin/python3 shim, which survives Xcode and Command Line Tools updates.
+    """
+    exe = os.path.abspath(sys.executable or shutil.which("python3") or "/usr/bin/python3")
+    apple = ("/Library/Developer/CommandLineTools/" in exe
+             or (".app/Contents/Developer/" in exe and "Xcode" in exe))
+    if apple and os.access("/usr/bin/python3", os.X_OK):
+        return "/usr/bin/python3"
+    return exe
 
 
 def default_root() -> Path:
@@ -329,8 +346,8 @@ def http_request(method: str, url: str, *, data: Optional[bytes] = None,
         with contextlib.suppress(Exception):
             body = exc.read()
         return exc.code, {k.lower(): v for k, v in (exc.headers or {}).items()}, body
-    except (urllib.error.URLError, OSError) as exc:
-        reason = str(getattr(exc, "reason", exc))
+    except (urllib.error.URLError, OSError, http.client.HTTPException) as exc:
+        reason = str(getattr(exc, "reason", exc)) or type(exc).__name__
         host = urllib.parse.urlsplit(url).hostname
         if "CERTIFICATE_VERIFY_FAILED" in reason:
             raise NetworkError(
@@ -408,16 +425,22 @@ def token_request(config: dict, fields: Dict[str, str]) -> dict:
     remember_secret(config.get("oura_client_secret"))
     fields = dict(fields, client_id=config["oura_client_id"],
                   client_secret=config["oura_client_secret"])
-    status, _, body = http_request("POST", OURA_TOKEN_URL, data=form(fields), headers=FORM_HEADERS)
+    status, headers, body = http_request("POST", OURA_TOKEN_URL, data=form(fields),
+                                         headers=FORM_HEADERS)
     payload = parse_json_body(body) or {}
+    if status == 429:
+        wait = retry_after_seconds(headers)
+        raise RateLimited(f"Oura rate limit reached (HTTP 429); pausing {wait} s", wait)
     if status == 200 and isinstance(payload.get("access_token"), str):
         remember_secret(payload["access_token"])
         remember_secret(payload.get("refresh_token"))
         return payload
     error = payload.get("error") if isinstance(payload.get("error"), str) else ""
     error = re.sub(r"[^a-z_]", "", error.lower())[:40]
-    if status in (400, 401) and error in ("invalid_grant", "invalid_client", "unauthorized_client"):
+    if status in (400, 401) and error == "invalid_grant":
         raise ReconnectNeeded(f"Oura no longer accepts this login ({error})")
+    if status in (400, 401) and error in ("invalid_client", "unauthorized_client"):
+        raise ReconnectNeeded(f"Oura rejected the saved Oura app keys ({error})", action="setup")
     raise OuraError(f"Oura login request failed (HTTP {status}{', ' + error if error else ''})")
 
 
@@ -563,10 +586,12 @@ def in_quiet_hours(now: dt.time, start: str, end: str) -> bool:
 # One scheduled check
 # --------------------------------------------------------------------------
 
-def reconnect_notice(paths: Paths) -> str:
-    return ("\u26A0\uFE0F <b>Oura stress alerts are paused:</b> Oura no longer accepts the "
-            "saved login.\n\nTo reconnect, run this on your computer:\n"
-            f"<code>{html.escape(command_for('connect-oura', paths))}</code>")
+def reconnect_notice(paths: Paths, action: str = "connect-oura") -> str:
+    what = ("the saved Oura app keys (check your app at cloud.ouraring.com, then enter "
+            "its Client ID and Secret again)" if action == "setup" else "the saved login")
+    return ("\u26A0\uFE0F <b>Oura stress alerts are paused:</b> Oura no longer accepts "
+            f"{what}.\n\nTo fix it, run this on your computer:\n"
+            f"<code>{html.escape(command_for(action, paths))}</code>")
 
 
 def record_failure(paths: Paths, config: dict, state: dict, reason: str) -> int:
@@ -603,7 +628,17 @@ def read_last_run(paths: Paths) -> dict:
 def run_check(paths: Paths, now: Optional[dt.datetime] = None, verify: bool = False) -> int:
     """One check. verify=True (used by install) waits for the lock and ignores quiet hours."""
     invoked_at = time.time()
-    code, outcome = _run_check(paths, now, verify)
+    try:
+        code, outcome = _run_check(paths, now, verify)
+    except RunTimeout as exc:
+        # The deadline passed: record it locally, with no further network work.
+        log(f"ERROR: {exc}")
+        state = load_state(paths)
+        state.update(consecutive_failures=int(state.get("consecutive_failures") or 0) + 1,
+                     last_error=str(exc), last_check=now_iso())
+        with contextlib.suppress(OSError):
+            write_json_private(paths.state, state)
+        code, outcome = 1, f"error: {exc}"
     record_run(paths, invoked_at, outcome)
     return code
 
@@ -634,10 +669,12 @@ def _run_check(paths: Paths, now: Optional[dt.datetime], verify: bool) -> Tuple[
         if state.get("needs_reconnect"):
             # Paused: no Oura requests, but keep trying until the user hears about it.
             if not state.get("reconnect_notice_sent"):
-                state["reconnect_notice_sent"] = send_telegram(config, reconnect_notice(paths),
-                                                               state)
+                action = state.get("reconnect_action") or "connect-oura"
+                state["reconnect_notice_sent"] = send_telegram(
+                    config, reconnect_notice(paths, action), state)
                 write_json_private(paths.state, state)
-            log(f"ERROR: Oura needs to be reconnected. Run: {command_for('connect-oura', paths)}")
+            action = state.get("reconnect_action") or "connect-oura"
+            log(f"ERROR: Oura needs to be reconnected. Run: {command_for(action, paths)}")
             return 1, "paused: Oura needs to be reconnected"
 
         next_allowed = state.get("next_oura_request_at")
@@ -651,8 +688,10 @@ def _run_check(paths: Paths, now: Optional[dt.datetime], verify: bool) -> Tuple[
             stress_high = client.stress_high_today(now.date())
         except ReconnectNeeded as exc:
             log(f"ERROR: {exc}")
-            state.update(needs_reconnect=True, last_error=redact(exc), last_check=now_iso())
-            state["reconnect_notice_sent"] = send_telegram(config, reconnect_notice(paths), state)
+            state.update(needs_reconnect=True, reconnect_action=exc.action,
+                         last_error=redact(exc), last_check=now_iso())
+            state["reconnect_notice_sent"] = send_telegram(
+                config, reconnect_notice(paths, exc.action), state)
             write_json_private(paths.state, state)
             return 1, "paused: Oura needs to be reconnected"
         except RateLimited as exc:
@@ -840,8 +879,10 @@ def setup_telegram(config: dict) -> None:
 # Setup: Oura
 # --------------------------------------------------------------------------
 
-class _CallbackServer(http.server.HTTPServer):
+class _CallbackServer(http.server.ThreadingHTTPServer):
     allow_reuse_address = True
+    daemon_threads = True
+    block_on_close = False  # an idle browser connection must not block shutdown
 
 
 class _CallbackServerV6(_CallbackServer):
@@ -850,6 +891,8 @@ class _CallbackServerV6(_CallbackServer):
 
 def _callback_handler(expected_state: str, result: dict, done: threading.Event):
     class Handler(http.server.BaseHTTPRequestHandler):
+        timeout = 10  # seconds to wait for a request on an accepted connection
+
         def log_message(self, *args):  # the request line contains the login code
             pass
 
@@ -984,7 +1027,7 @@ def connect_oura(paths: Paths, config: dict) -> None:
         write_json_private(paths.tokens, tokens_from_response(payload, time.time()))
         state = load_state(paths)
         state.update(needs_reconnect=False, reconnect_notice_sent=False, last_error=None,
-                     next_oura_request_at=None)
+                     next_oura_request_at=None, reconnect_action=None)
         write_json_private(paths.state, state)
     say("Oura is connected.")
 
@@ -1178,6 +1221,7 @@ def install_schedule(paths: Paths, config: dict, verify: bool = True) -> None:
         return
     log_path = paths.root / "check.log"
     if systemd_user_available():
+        since = time.time()  # before enabling: the timer may start a check right away
         unit_dir = systemd_unit_dir()
         unit_dir.mkdir(parents=True, exist_ok=True)
         service, timer = systemd_units(python, script, paths.root, interval)
@@ -1187,10 +1231,9 @@ def install_schedule(paths: Paths, config: dict, verify: bool = True) -> None:
         run(["systemctl", "--user", "enable", "--now", f"{SYSTEMD_UNIT}.timer"], check=True)
         run(["systemctl", "--user", "restart", f"{SYSTEMD_UNIT}.timer"])
         if verify:  # Start the service through systemd once, to prove the unit works.
-            since = time.time()
             run(["systemctl", "--user", "start", f"{SYSTEMD_UNIT}.service"],
                 timeout=CHECK_TIME_LIMIT_SECONDS + 30)
-            report_scheduled_run(wait_for_scheduled_run(paths, since, timeout=10))
+            report_scheduled_run(wait_for_scheduled_run(paths, since, timeout=30))
         say(f"Installed a systemd user timer (every {interval} minutes).")
         say(f"Logs: journalctl --user -u {SYSTEMD_UNIT}.service")
         if linger_enabled() is False:
@@ -1212,6 +1255,9 @@ def install_schedule(paths: Paths, config: dict, verify: bool = True) -> None:
 
 def set_cron_line(line: Optional[str]) -> None:
     current = run(["crontab", "-l"])
+    if current.returncode != 0 and "no crontab" not in current.stderr.lower():
+        raise AppError(f"Could not read your existing crontab, so it was left unchanged: "
+                       f"{current.stderr.strip()[:200]}")
     lines = current.stdout.splitlines() if current.returncode == 0 else []
     kept = [item for item in lines if CRON_MARKER not in item]
     if line:
@@ -1228,6 +1274,7 @@ def uninstall_schedule() -> None:
     elif system == "Linux":
         if systemd_user_available():
             run(["systemctl", "--user", "disable", "--now", f"{SYSTEMD_UNIT}.timer"])
+            run(["systemctl", "--user", "stop", f"{SYSTEMD_UNIT}.service"])
             for name in (f"{SYSTEMD_UNIT}.service", f"{SYSTEMD_UNIT}.timer"):
                 with contextlib.suppress(FileNotFoundError):
                     (systemd_unit_dir() / name).unlink()
@@ -1282,6 +1329,10 @@ def cmd_setup(paths: Paths, args) -> int:
 
 
 def read_stress_now(paths: Paths, config: dict) -> None:
+    pause = load_state(paths).get("next_oura_request_at")
+    if isinstance(pause, (int, float)) and pause > time.time():
+        until = dt.datetime.fromtimestamp(pause).astimezone().isoformat(timespec="minutes")
+        raise AppError(f"Oura asked us to wait until {until}. Try again after that.")
     with interactive_lock(paths):
         value = OuraClient(paths, config).stress_high_today(dt.datetime.now().astimezone().date())
     if value is None:
@@ -1326,10 +1377,31 @@ def cmd_install(paths: Paths, args) -> int:
 def cmd_uninstall(paths: Paths, args) -> int:
     uninstall_schedule()
     if args.delete_data:
-        shutil.rmtree(paths.root, ignore_errors=True)
-        shutil.rmtree(installed_script_path().parent, ignore_errors=True)
+        # Wait for any running check, so it cannot write files back after deletion.
+        with interactive_lock(paths):
+            delete_owned_files(paths.root, OWNED_DATA_FILES)
+        delete_owned_files(installed_script_path().parent, (SCRIPT_NAME,))
         say(f"Deleted saved settings and keys in {paths.root}.")
     return 0
+
+
+OWNED_DATA_FILES = ("config.json", "tokens.json", "state.json", "last_run.json", "check.log")
+
+
+def delete_owned_files(folder: Path, names) -> None:
+    """Remove only files this program creates; remove the folder only if then empty."""
+    if not folder.is_dir():
+        return
+    for item in folder.iterdir():
+        ours = item.name in names or (item.name.startswith(tuple(f".{n}." for n in names))
+                                      and item.name.endswith(".tmp"))
+        if ours and item.is_file():
+            item.unlink()
+    lock = folder / "lock"
+    if lock.is_file() and set(os.listdir(folder)) == {"lock"}:
+        lock.unlink()
+    if not os.listdir(folder):
+        folder.rmdir()
 
 
 def cmd_settings(paths: Paths, args) -> int:
@@ -1420,7 +1492,8 @@ def cmd_status(paths: Paths, args) -> int:
         say("Latest stress data: none yet. Daytime Stress needs an Oura Ring Gen3 or "
             "Ring 4, an active membership, and a few days of wear.")
     if state.get("needs_reconnect"):
-        say(f"ACTION NEEDED: reconnect Oura by running: {command_for('connect-oura', paths)}")
+        action = state.get("reconnect_action") or "connect-oura"
+        say(f"ACTION NEEDED: reconnect Oura by running: {command_for(action, paths)}")
     if state.get("delivery_error"):
         say(f"ACTION NEEDED: Telegram messages are failing. {state['delivery_error']}")
     if state.get("consecutive_failures"):

@@ -44,7 +44,7 @@ It will guide you through everything. A few steps only you can do, and it will t
 
 ## Doing it yourself
 
-**1. Get the code.** Click the green **Code** button on this page, then **Download ZIP**, and unzip it somewhere permanent, such as your home folder. Or, if you know git:
+**1. Get the code.** Click the green **Code** button on this page, then **Download ZIP**. Unzip it, rename the folder to `oura-stress-telegram`, and move it into your home folder (on a Mac, the folder with your name and the house icon). Or, if you know git:
 
 ```bash
 git clone https://github.com/fkb032/oura-stress-telegram.git ~/oura-stress-telegram
@@ -117,7 +117,7 @@ python3 oura_stress_telegram.py settings --min-increase 15
 - **Alerts are not instant.** Your ring syncs through the Oura phone app, and Oura updates stress about every 15 minutes while you are awake and still. A message usually arrives 15 to 30 minutes after the stress, sometimes later.
 - **It reports what Oura recorded**, not a live reading. A message after a quiet stretch can describe stress from earlier in the day.
 - **The default is sensitive:** any new high stress sends a message. Use `--min-increase` if that is too many.
-- **If something breaks**, you get a Telegram message saying so. If Oura ever stops accepting the saved login, the message includes the exact command to reconnect.
+- **If checks keep failing**, you get a Telegram message saying so. If Oura ever stops accepting the saved login, the message includes the exact command to fix it. It cannot tell you if Telegram itself is unreachable or the computer is off, so run `status` now and then.
 - **Use a new bot just for this.** If another program already reads the same bot's messages, setup will tell you to create a new one.
 - **This is not medical advice** and is not affiliated with Oura or Telegram.
 
@@ -137,7 +137,7 @@ python3 oura_stress_telegram.py settings --min-increase 15
 
 - Your Telegram bot token, Oura app keys and Oura login are saved in `~/.config/oura-stress-telegram/`, readable only by your user account.
 - The program only asks Oura for **daily** data and only reads the daily stress summary.
-- Telegram messages pass through Telegram's servers like any bot message. They contain only minutes of stress.
+- Telegram messages pass through Telegram's servers like any bot message. Alerts contain only minutes of stress. Problem notices also include the error and the command to run, which shows folder paths on your computer.
 - To remove everything: run `uninstall --delete-data`, delete your application at [cloud.ouraring.com/oauth/applications](https://cloud.ouraring.com/oauth/applications), and delete the bot by sending `/deletebot` to @BotFather.
 
 ## Project status

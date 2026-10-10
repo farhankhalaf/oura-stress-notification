@@ -25,6 +25,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 import oura_stress_telegram as ost  # noqa: E402
 
+ost._real_http_request = ost.http_request
+
 BOT_TOKEN = "123456789:AAEexampleexampleexampleexampleexample"
 CHAT_ID = "4242"
 NOON = dt.datetime(2026, 10, 9, 12, 0, tzinfo=dt.timezone.utc)
@@ -554,6 +556,101 @@ class InstallVerificationTests(Base):
         ost.report_scheduled_run("skipped: quiet hours")
         with self.assertRaises(ost.AppError):
             ost.report_scheduled_run("paused: Oura needs to be reconnected")
+
+
+class ReviewFixTests(Base):
+    def test_delete_data_removes_only_owned_files(self):
+        other = self.paths.root / "my-notes.txt"
+        other.write_text("keep me")
+        ost.delete_owned_files(self.paths.root, ost.OWNED_DATA_FILES)
+        self.assertTrue(other.exists())
+        self.assertFalse(self.paths.config.exists())
+        other.unlink()
+        ost.delete_owned_files(self.paths.root, ost.OWNED_DATA_FILES)
+        self.assertFalse(self.paths.root.exists())
+
+    def test_crontab_read_failure_leaves_crontab_alone(self):
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            return subprocess.CompletedProcess(cmd, 1, "", "crontab: permission denied")
+        with mock.patch.object(ost, "run", fake_run):
+            with self.assertRaises(ost.AppError):
+                ost.set_cron_line("* * * * * x " + ost.CRON_MARKER)
+        self.assertEqual(calls, [["crontab", "-l"]])
+
+    def test_token_endpoint_429_pauses(self):
+        self.write_tokens(expires_in=0)
+        real = self.http
+
+        def throttled(method, url, **kwargs):
+            if url.startswith(ost.OURA_TOKEN_URL):
+                return 429, {"retry-after": "7200"}, b"{}"
+            return real(method, url, **kwargs)
+        with mock.patch.object(ost, "http_request", throttled):
+            self.assertEqual(self.check(), 1)
+        self.assertEqual(self.state()["next_oura_request_at"], int(NOON.timestamp()) + 7200)
+        with self.assertRaises(ost.AppError):
+            with mock.patch.object(ost.time, "time", return_value=NOON.timestamp() + 60):
+                ost.read_stress_now(self.paths, ost.load_config(self.paths))
+
+    def test_rejected_app_keys_point_to_setup(self):
+        self.write_tokens(expires_in=0)
+        self.http.token_response = (401, {"error": "invalid_client"})
+        self.check()
+        self.assertEqual(self.state()["reconnect_action"], "setup")
+        self.assertIn(" setup</code>", self.http.sent[0])
+
+    def test_truncated_response_counts_as_failure(self):
+        import http.client
+
+        def truncated(*args, **kwargs):
+            raise http.client.IncompleteRead(b"par")
+        with mock.patch.object(ost._OPENER, "open", truncated):
+            with mock.patch.object(ost, "http_request", ost.__dict__["_real_http_request"]):
+                self.assertEqual(self.check(), 1)
+        self.assertEqual(self.state()["consecutive_failures"], 1)
+
+    def test_timeout_does_no_more_network_work(self):
+        sent_before = len(self.http.sent)
+        self.set_state(consecutive_failures=2)
+
+        def slow(*args, **kwargs):
+            time.sleep(5)
+        with mock.patch.object(ost.OuraClient, "stress_high_today", slow):
+            with ost.time_limit(1):
+                self.assertEqual(self.check(), 1)
+        self.assertEqual(len(self.http.sent), sent_before)
+        self.assertEqual(self.state()["consecutive_failures"], 3)
+
+    def test_idle_connection_does_not_block_callback(self):
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
+        result, done = {}, threading.Event()
+        servers = ost.start_callback_servers(port, ost._callback_handler("st", result, done))
+        idle = socket.create_connection(("127.0.0.1", port))
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/callback?code=c123456&state=st",
+                                        timeout=5) as response:
+                self.assertEqual(response.status, 200)
+            started = time.monotonic()
+            for server in servers:
+                server.shutdown()
+                server.server_close()
+            self.assertLess(time.monotonic() - started, 3)
+        finally:
+            idle.close()
+        self.assertEqual(result["code"], "c123456")
+
+    def test_python_path_keeps_stable_paths(self):
+        with mock.patch.object(ost.sys, "executable", "/opt/homebrew/opt/python@3.14/bin/python3.14"):
+            self.assertEqual(ost.python_path(), "/opt/homebrew/opt/python@3.14/bin/python3.14")
+        with mock.patch.object(ost.sys, "executable",
+                               "/Applications/Xcode.app/Contents/Developer/usr/bin/python3"):
+            if os.access("/usr/bin/python3", os.X_OK):
+                self.assertEqual(ost.python_path(), "/usr/bin/python3")
 
 
 class OAuthTests(unittest.TestCase):
