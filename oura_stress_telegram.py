@@ -439,6 +439,11 @@ def token_request(config: dict, fields: Dict[str, str]) -> dict:
     error = re.sub(r"[^a-z_]", "", error.lower())[:40]
     if status in (400, 401) and error == "invalid_grant":
         raise ReconnectNeeded(f"Oura no longer accepts this login ({error})")
+    # The current Oura provider reports a spent single-use refresh token as
+    # invalid_request. Repeating it cannot recover the lost token response.
+    if (status in (400, 401) and error == "invalid_request"
+            and fields.get("grant_type") == "refresh_token"):
+        raise ReconnectNeeded(f"Oura could not renew the saved login ({error})")
     if status in (400, 401) and error in ("invalid_client", "unauthorized_client"):
         raise ReconnectNeeded(f"Oura rejected the saved Oura app keys ({error})", action="setup")
     raise OuraError(f"Oura login request failed (HTTP {status}{', ' + error if error else ''})")
@@ -501,6 +506,14 @@ class OuraClient:
             token = self.access_token(force_refresh=attempt == 2)
             status, headers, body = http_request("GET", f"{OURA_STRESS_URL}?{query}", headers={
                 "Authorization": f"Bearer {token}", "Accept": "application/json"})
+            if status in (401, 403):
+                detail = (parse_json_body(body) or {}).get("detail")
+                if (isinstance(detail, str)
+                        and "not authorized access daily scope" in detail.lower()):
+                    raise ReconnectNeeded(
+                        "Oura Daily permission was not granted. Reconnect, turn on "
+                        "'Sleep, readiness, and activity', then press Allow. "
+                        f"Run: {command_for('connect-oura', self.paths)}")
             if status == 401 and attempt == 1:
                 continue
             if status == 401:
@@ -589,9 +602,11 @@ def in_quiet_hours(now: dt.time, start: str, end: str) -> bool:
 def reconnect_notice(paths: Paths, action: str = "connect-oura") -> str:
     what = (f"the saved Oura app keys (check your app at {OURA_APPS_URL}, then enter "
             "its Client ID and Secret again)" if action == "setup" else "the saved login")
+    consent = ("\n\nOn the consent screen, turn on 'Sleep, readiness, and activity', "
+               "then press Allow." if action == "connect-oura" else "")
     return ("\u26A0\uFE0F <b>Oura stress alerts are paused:</b> Oura no longer accepts "
             f"{what}.\n\nTo fix it, run this on your computer:\n"
-            f"<code>{html.escape(command_for(action, paths))}</code>")
+            f"<code>{html.escape(command_for(action, paths))}</code>{consent}")
 
 
 def record_failure(paths: Paths, config: dict, state: dict, reason: str) -> int:
@@ -993,7 +1008,8 @@ def wait_for_redirect(port: int, expected_state: str, auth_url: str) -> str:
         with contextlib.suppress(Exception):
             webbrowser.open(auth_url)
         say()
-        say("Log in to Oura and press Allow. If the browser then shows an error page,")
+        say("Log in to Oura, turn on 'Sleep, readiness, and activity', then press Allow.")
+        say("If the browser then shows an error page,")
         say("copy the full address from its address bar, paste it here and press Enter.")
         stdin_open = interactive()
         deadline = time.monotonic() + OAUTH_WAIT_SECONDS

@@ -369,6 +369,37 @@ class TokenTests(Base):
         self.check()
         self.assertEqual(len(self.http.sent), 1)
 
+    def test_spent_refresh_invalid_request_pauses_and_notifies_once(self):
+        self.write_tokens(expires_in=0)
+        self.http.token_response = (400, {"error": "invalid_request",
+                                          "error_description": "Invalid request"})
+        self.assertEqual(self.check(), 1)
+        self.assertTrue(self.state()["needs_reconnect"])
+        self.assertTrue(self.state()["reconnect_notice_sent"])
+        self.assertIn("connect-oura</code>", self.http.sent[0])
+        self.assertIn("Sleep, readiness, and activity", self.http.sent[0])
+        self.assertEqual(self.check(), 1)
+        self.assertEqual(len(self.http.token_calls), 1)
+        self.assertEqual(len(self.http.sent), 1)
+
+    def test_invalid_authorization_request_is_not_a_spent_refresh_token(self):
+        self.http.token_response = (400, {"error": "invalid_request"})
+        with self.assertRaises(ost.OuraError):
+            ost.token_request(ost.load_config(self.paths),
+                              {"grant_type": "authorization_code", "code": "bad-code"})
+
+    def test_missing_daily_consent_pauses_without_rotating_tokens(self):
+        body = json.dumps({"detail": "Token is not authorized access daily scope."}).encode()
+        for status in (401, 403):
+            with self.subTest(status=status):
+                self.set_state()
+                self.http.stress = [(status, body)]
+                self.assertEqual(self.check(), 1)
+                self.assertTrue(self.state()["needs_reconnect"])
+                self.assertIn("Daily permission was not granted", self.state()["last_error"])
+                self.assertIn("Sleep, readiness, and activity", self.http.sent[-1])
+                self.assertEqual(self.http.token_calls, [])
+
     def test_second_401_needs_reconnect(self):
         self.http.stress = [(401, b"{}")]
         self.assertEqual(self.check(), 1)
@@ -387,7 +418,8 @@ class TokenTests(Base):
 
         def drop_token_reply(method, url, **kwargs):
             if url.startswith(ost.OURA_TOKEN_URL):
-                real.token_response = (400, {"error": "invalid_grant"})  # server rotated
+                real.token_response = (400, {"error": "invalid_request",
+                                             "error_description": "Invalid request"})
                 raise ost.NetworkError("Could not reach api.ouraring.com: timed out")
             return real(method, url, **kwargs)
         with mock.patch.object(ost, "http_request", drop_token_reply):

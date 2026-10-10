@@ -39,7 +39,7 @@ It will guide you through everything. A few steps only you can do, and it will t
 
 1. Create a Telegram bot (a 1 minute chat with Telegram's @BotFather).
 2. Register a free "application" on Oura's website. This is how Oura lets you connect your own data now.
-3. Log in to Oura in your browser and press **Allow**.
+3. Log in to Oura, turn on **Sleep, readiness, and activity**, then press **Allow**.
 4. Type your keys into the setup program in your own terminal window. Do not paste them into the AI chat.
 
 ## Doing it yourself
@@ -73,13 +73,13 @@ python3 oura_stress_telegram.py setup
 Setup walks you through three parts:
 
 - **Telegram.** In Telegram, message **@BotFather**, send `/newbot`, choose a name and a username ending in `bot`. Paste the token it gives you into setup. Then open your new bot, press **Start**, and send it the 6 character pairing code that setup shows you.
-- **Oura.** Go to [developer.ouraring.com/applications](https://developer.ouraring.com/applications), log in, and create a new application. Any name works. Set the **Redirect URI** to exactly:
+- **Oura.** Go to [developer.ouraring.com/applications](https://developer.ouraring.com/applications), log in, and create a new application. Enter a name, description and contact email. For a personal app, use this repository URL for Website, Privacy Policy and Terms of Service. Select **Daily** under Scopes. Set the **Redirect URI** to exactly:
 
   ```text
   http://localhost:8765/callback
   ```
 
-  Save it, then paste the **Client ID** and **Client Secret** into setup. Your browser opens Oura's login page. Log in and press **Allow**.
+  Accept the Oura API Agreement and create the app, then paste the **Client ID** and **Client Secret** into setup. Your browser opens Oura's login page. Log in, turn on **Sleep, readiness, and activity**, then press **Allow**. This is the Daily permission the tool needs, even for stress data.
 - **Background checks.** Answer **Y** when setup asks to check automatically. It runs one real check, installs the background job, and waits until the job has run once by itself.
 
 That is it. Keep the Oura app on your phone so your ring keeps syncing.
@@ -142,7 +142,7 @@ python3 oura_stress_telegram.py settings --min-increase 15
 
 ## Project status
 
-Version 0.1.0. Automated tests run on macOS and Linux. A full run with a freshly registered Oura application is tracked in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) and is still pending. Please [open an issue](https://github.com/fkb032/oura-stress-telegram/issues) if anything is confusing or broken.
+Version 0.1.0. Live macOS setup with a fresh Oura application, Telegram delivery, both callback paths, background startup, token refresh and lost-response recovery were tested on October 10, 2026. Automated tests run on macOS and Linux. Untested cases and test deviations, including logout/login, access revocation and live Linux scheduling, are recorded in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). Please [open an issue](https://github.com/fkb032/oura-stress-telegram/issues) if anything is confusing or broken.
 
 ## For developers
 

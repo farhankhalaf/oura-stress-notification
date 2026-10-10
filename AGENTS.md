@@ -20,7 +20,7 @@ You are helping a person, often not technical, set up Oura stress alerts on Tele
 4. **Explain what is coming**, in plain words:
    - They will create a Telegram bot with @BotFather and send it a pairing code.
    - They will register a free application at https://developer.ouraring.com/applications with the Redirect URI exactly `http://localhost:8765/callback`, then copy its Client ID and Client Secret.
-   - They will log in to Oura in the browser and press Allow.
+   - They will log in to Oura, turn on **Sleep, readiness, and activity**, then press **Allow**.
 5. **Have them run setup in their own terminal:**
 
    ```bash
