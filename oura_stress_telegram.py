@@ -343,7 +343,7 @@ def http_request(method: str, url: str, *, data: Optional[bytes] = None,
                     response.read())
     except urllib.error.HTTPError as exc:
         body = b""
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(OSError, http.client.HTTPException, ValueError):
             body = exc.read()
         return exc.code, {k.lower(): v for k, v in (exc.headers or {}).items()}, body
     except (urllib.error.URLError, OSError, http.client.HTTPException) as exc:
@@ -610,12 +610,12 @@ def record_failure(paths: Paths, config: dict, state: dict, reason: str) -> int:
     return 1
 
 
-def record_run(paths: Paths, invoked_at: float, outcome: str) -> None:
+def record_run(paths: Paths, invoked_at: float, outcome: str, run_id: Optional[str] = None) -> None:
     """Remember what the latest check did, so install and status can tell a real
     check from a skip."""
     with contextlib.suppress(OSError):
         write_json_private(paths.last_run, {"invoked_at": invoked_at, "finished_at": time.time(),
-                                            "outcome": redact(outcome)[:300]})
+                                            "outcome": redact(outcome)[:300], "run_id": run_id})
 
 
 def read_last_run(paths: Paths) -> dict:
@@ -625,106 +625,130 @@ def read_last_run(paths: Paths) -> dict:
         return {}
 
 
-def run_check(paths: Paths, now: Optional[dt.datetime] = None, verify: bool = False) -> int:
+def run_check(paths: Paths, now: Optional[dt.datetime] = None, verify: bool = False,
+              run_id: Optional[str] = None) -> int:
     """One check. verify=True (used by install) waits for the lock and ignores quiet hours."""
     invoked_at = time.time()
+    wait = INTERACTIVE_LOCK_WAIT_SECONDS if verify else 0
     try:
-        code, outcome = _run_check(paths, now, verify)
-    except RunTimeout as exc:
-        # The deadline passed: record it locally, with no further network work.
+        with run_lock(paths, wait_seconds=wait) as acquired:
+            if not acquired:
+                log("SKIP: another check is already running")
+                code, outcome = 0, "skipped: another check was running"
+            else:
+                try:
+                    code, outcome = _run_check_locked(paths, now, verify)
+                except RunTimeout as exc:
+                    # Still holding the lock: record the failure, start no network work.
+                    log(f"ERROR: {exc}")
+                    state = load_state(paths)
+                    failures = int(state.get("consecutive_failures") or 0) + 1
+                    state.update(consecutive_failures=failures, last_error=str(exc),
+                                 last_check=now_iso())
+                    with contextlib.suppress(OSError):
+                        write_json_private(paths.state, state)
+                    code, outcome = 1, f"error: {exc}"
+    except RunTimeout as exc:  # the deadline passed while waiting for the lock
         log(f"ERROR: {exc}")
-        state = load_state(paths)
-        state.update(consecutive_failures=int(state.get("consecutive_failures") or 0) + 1,
-                     last_error=str(exc), last_check=now_iso())
-        with contextlib.suppress(OSError):
-            write_json_private(paths.state, state)
         code, outcome = 1, f"error: {exc}"
-    record_run(paths, invoked_at, outcome)
+    record_run(paths, invoked_at, outcome, run_id)
     return code
 
 
-def _run_check(paths: Paths, now: Optional[dt.datetime], verify: bool) -> Tuple[int, str]:
-    wait = INTERACTIVE_LOCK_WAIT_SECONDS if verify else 0
-    with run_lock(paths, wait_seconds=wait) as acquired:
-        if not acquired:
-            log("SKIP: another check is already running")
-            return 0, "skipped: another check was running"
-        config = load_config(paths)
-        missing = [key for key in ("telegram_bot_token", "telegram_chat_id",
-                                   "oura_client_id", "oura_client_secret") if not config.get(key)]
-        if missing:
-            log(f"ERROR: setup is not finished (missing {', '.join(missing)}). "
-                f"Run: {command_for('setup', paths)}")
-            return 1, "error: setup is not finished"
-        settings = settings_of(config)
-        now = now or dt.datetime.now().astimezone()
-        if not verify:
-            try:
-                if in_quiet_hours(now.time(), settings["quiet_start"], settings["quiet_end"]):
-                    return 0, "skipped: quiet hours"
-            except AppError as exc:
-                log(f"WARN: ignoring quiet hours: {exc}")
-        state = load_state(paths)
-
-        if state.get("needs_reconnect"):
-            # Paused: no Oura requests, but keep trying until the user hears about it.
-            if not state.get("reconnect_notice_sent"):
-                action = state.get("reconnect_action") or "connect-oura"
-                state["reconnect_notice_sent"] = send_telegram(
-                    config, reconnect_notice(paths, action), state)
-                write_json_private(paths.state, state)
-            action = state.get("reconnect_action") or "connect-oura"
-            log(f"ERROR: Oura needs to be reconnected. Run: {command_for(action, paths)}")
-            return 1, "paused: Oura needs to be reconnected"
-
-        next_allowed = state.get("next_oura_request_at")
-        if isinstance(next_allowed, (int, float)) and now.timestamp() < next_allowed:
-            until = dt.datetime.fromtimestamp(next_allowed).astimezone()
-            return 0, f"skipped: Oura asked us to wait until {until.isoformat(timespec='minutes')}"
-
-        today = now.date().isoformat()
+def _run_check_locked(paths: Paths, now: Optional[dt.datetime], verify: bool) -> Tuple[int, str]:
+    """The body of one check. The caller holds the run lock."""
+    config = load_config(paths)
+    missing = [key for key in ("telegram_bot_token", "telegram_chat_id",
+                               "oura_client_id", "oura_client_secret") if not config.get(key)]
+    if missing:
+        log(f"ERROR: setup is not finished (missing {', '.join(missing)}). "
+            f"Run: {command_for('setup', paths)}")
+        return 1, "error: setup is not finished"
+    settings = settings_of(config)
+    now = now or dt.datetime.now().astimezone()
+    if not verify:
         try:
-            client = OuraClient(paths, config)
-            stress_high = client.stress_high_today(now.date())
-        except ReconnectNeeded as exc:
-            log(f"ERROR: {exc}")
-            state.update(needs_reconnect=True, reconnect_action=exc.action,
-                         last_error=redact(exc), last_check=now_iso())
-            state["reconnect_notice_sent"] = send_telegram(
-                config, reconnect_notice(paths, exc.action), state)
-            write_json_private(paths.state, state)
-            return 1, "paused: Oura needs to be reconnected"
-        except RateLimited as exc:
-            state["next_oura_request_at"] = int(now.timestamp()) + exc.retry_after
-            return record_failure(paths, config, state, str(exc)), f"error: {exc}"
-        except (AppError, OSError) as exc:
-            # OSError: for example a renewed Oura login that could not be saved. The next
-            # run then finds the old, spent login and lands on the reconnect path.
-            return record_failure(paths, config, state, str(exc)), f"error: {exc}"
+            if in_quiet_hours(now.time(), settings["quiet_start"], settings["quiet_end"]):
+                return 0, "skipped: quiet hours"
+        except AppError as exc:
+            log(f"WARN: ignoring quiet hours: {exc}")
+    state = load_state(paths)
 
-        if state.get("failure_alerted"):
-            send_telegram(config, "\u2705 Oura stress alerts are working again.", state)
-        message, baseline = plan_alert(stress_high, state, today,
-                                       int(settings.get("min_increase_minutes") or 0))
-        new_baseline = baseline
-        outcome = "ok"
-        if message:
-            if send_telegram(config, message, state):
-                new_baseline = stress_high
-                outcome = "ok: alert sent"
-                log(f"ALERT sent: {stress_high // 60} min in high stress today")
-            else:
-                # The baseline stays, so a later check today retries any increase
-                # that is still outstanding.
-                outcome = "ok, but the Telegram alert failed"
-        state.update(last_date=today, last_stress_high=new_baseline, last_check=now_iso(),
-                     consecutive_failures=0, failure_alerted=False, last_error=None,
-                     needs_reconnect=False, reconnect_notice_sent=False,
-                     next_oura_request_at=None)
-        if stress_high is not None:
-            state.update(last_seen_stress_high=stress_high, last_data_day=today)
+    if state.get("needs_reconnect"):
+        # Paused: no Oura requests, but keep trying until the user hears about it.
+        if not state.get("reconnect_notice_sent"):
+            action = state.get("reconnect_action") or "connect-oura"
+            state["reconnect_notice_sent"] = send_telegram(
+                config, reconnect_notice(paths, action), state)
+            write_json_private(paths.state, state)
+        action = state.get("reconnect_action") or "connect-oura"
+        log(f"ERROR: Oura needs to be reconnected. Run: {command_for(action, paths)}")
+        return 1, "paused: Oura needs to be reconnected"
+
+    next_allowed = state.get("next_oura_request_at")
+    if isinstance(next_allowed, (int, float)) and now.timestamp() < next_allowed:
+        until = dt.datetime.fromtimestamp(next_allowed).astimezone()
+        return 0, f"skipped: Oura asked us to wait until {until.isoformat(timespec='minutes')}"
+
+    today = now.date().isoformat()
+    try:
+        stress_high = read_oura_locked(paths, config, now, state)
+    except ReconnectNeeded as exc:
+        log(f"ERROR: {exc}")
+        state.update(needs_reconnect=True, reconnect_action=exc.action,
+                     last_error=redact(exc), last_check=now_iso())
+        state["reconnect_notice_sent"] = send_telegram(
+            config, reconnect_notice(paths, exc.action), state)
         write_json_private(paths.state, state)
-        return 0, outcome
+        return 1, "paused: Oura needs to be reconnected"
+    except RateLimited as exc:
+        return record_failure(paths, config, state, str(exc)), f"error: {exc}"
+    except (AppError, OSError) as exc:
+        # OSError: for example a renewed Oura login that could not be saved. The next
+        # run then finds the old, spent login and lands on the reconnect path.
+        return record_failure(paths, config, state, str(exc)), f"error: {exc}"
+
+    if state.get("failure_alerted"):
+        send_telegram(config, "\u2705 Oura stress alerts are working again.", state)
+    message, baseline = plan_alert(stress_high, state, today,
+                                   int(settings.get("min_increase_minutes") or 0))
+    new_baseline = baseline
+    outcome = "ok"
+    if message:
+        if send_telegram(config, message, state):
+            new_baseline = stress_high
+            outcome = "ok: alert sent"
+            log(f"ALERT sent: {stress_high // 60} min in high stress today")
+        else:
+            # The baseline stays, so a later check today retries any increase
+            # that is still outstanding.
+            outcome = "degraded: the Telegram alert failed"
+    state.update(last_date=today, last_stress_high=new_baseline, last_check=now_iso(),
+                 consecutive_failures=0, failure_alerted=False, last_error=None,
+                 needs_reconnect=False, reconnect_notice_sent=False,
+                 next_oura_request_at=None)
+    if stress_high is not None:
+        state.update(last_seen_stress_high=stress_high, last_data_day=today)
+    write_json_private(paths.state, state)
+    return 0, outcome
+
+
+def oura_pause_message(state: dict, now: float) -> Optional[str]:
+    pause = state.get("next_oura_request_at")
+    if isinstance(pause, (int, float)) and now < pause:
+        until = dt.datetime.fromtimestamp(pause).astimezone().isoformat(timespec="minutes")
+        return f"Oura asked us to wait until {until}"
+    return None
+
+
+def read_oura_locked(paths: Paths, config: dict, now: dt.datetime, state: dict) -> Optional[int]:
+    """Today's stress_high. Caller holds the run lock and saves `state` afterwards;
+    a new Oura rate limit is recorded in `state` before the error is raised."""
+    try:
+        return OuraClient(paths, config).stress_high_today(now.date())
+    except RateLimited as exc:
+        state["next_oura_request_at"] = int(now.timestamp()) + exc.retry_after
+        raise
 
 
 def _raise_timeout(signum, frame):
@@ -1001,6 +1025,9 @@ def wait_for_redirect(port: int, expected_state: str, auth_url: str) -> str:
 
 
 def connect_oura(paths: Paths, config: dict) -> None:
+    pause = oura_pause_message(load_state(paths), time.time())
+    if pause:
+        raise AppError(f"{pause}. Try again after that.")
     port = int(settings_of(config)["redirect_port"])
     verifier, challenge = pkce_pair()
     remember_secret(verifier)
@@ -1018,9 +1045,15 @@ def connect_oura(paths: Paths, config: dict) -> None:
     # Hold the lock from the exchange to the save, so a background check cannot
     # race the new login.
     with interactive_lock(paths):
-        payload = token_request(config, {"grant_type": "authorization_code", "code": code,
-                                         "redirect_uri": redirect_uri(port),
-                                         "code_verifier": verifier})
+        try:
+            payload = token_request(config, {"grant_type": "authorization_code", "code": code,
+                                             "redirect_uri": redirect_uri(port),
+                                             "code_verifier": verifier})
+        except RateLimited as exc:
+            state = load_state(paths)
+            state["next_oura_request_at"] = int(time.time()) + exc.retry_after
+            write_json_private(paths.state, state)
+            raise
         if not payload.get("refresh_token"):
             say("Note: Oura did not provide a renewable login. You may need to reconnect "
                 "when it expires.")
@@ -1158,16 +1191,21 @@ def verify_background_run(paths: Paths, python: str, script: Path) -> None:
     with contextlib.suppress(KeyError):
         env["LANG"] = os.environ["LANG"]
     say("Running one check the way the background job will...")
-    started = time.time()
-    result = run([python, str(script), "check", "--verify"], env=env,
+    run_id = secrets.token_hex(8)
+    result = run([python, str(script), "check", "--verify", "--run-id", run_id], env=env,
                  timeout=CHECK_TIME_LIMIT_SECONDS + INTERACTIVE_LOCK_WAIT_SECONDS + 30)
     last = read_last_run(paths)
-    outcome = str(last.get("outcome") or "")
-    if (result.returncode != 0 or float(last.get("invoked_at") or 0) < started - 1
-            or not outcome.startswith("ok")):
-        detail = load_state(paths).get("last_error") or outcome or redact(result.stderr.strip()[-300:])
-        raise AppError(f"The check failed: {detail}")
+    outcome = str(last.get("outcome") or "") if last.get("run_id") == run_id else ""
+    if result.returncode != 0 or outcome not in SUCCESS_OUTCOMES:
+        state = load_state(paths)
+        detail = (state.get("delivery_error") if outcome.startswith("degraded") else None) \
+            or state.get("last_error") or outcome or redact(result.stderr.strip()[-300:]) \
+            or "the check did not run"
+        raise AppError(f"The check did not succeed: {detail}")
     say(f"Check worked ({outcome}).")
+
+
+SUCCESS_OUTCOMES = ("ok", "ok: alert sent")
 
 
 def wait_for_scheduled_run(paths: Paths, since: float, timeout: float = 60) -> Optional[str]:
@@ -1186,7 +1224,7 @@ def report_scheduled_run(outcome: Optional[str]) -> None:
         raise AppError("The background job was installed but did not run within a minute. "
                        "Run 'status' in a few minutes; if 'Last background run' stays "
                        "empty, see Troubleshooting in the README.")
-    if outcome.startswith(("error", "paused")):
+    if outcome.startswith(("error", "paused", "degraded")):
         raise AppError(f"The background job ran but reported: {outcome}")
     say(f"The scheduler started a check by itself ({outcome}).")
 
@@ -1266,21 +1304,40 @@ def set_cron_line(line: Optional[str]) -> None:
 
 
 def uninstall_schedule() -> None:
+    """Stop and remove the background job. Raises if it may still be running."""
     system = platform.system()
+    problems = []
     if system == "Darwin":
-        run(["launchctl", "bootout", f"gui/{os.getuid()}/{LAUNCHD_LABEL}"])
-        with contextlib.suppress(FileNotFoundError):
-            launchd_plist_path().unlink()
+        target = f"gui/{os.getuid()}/{LAUNCHD_LABEL}"
+        run(["launchctl", "bootout", target])
+        if run(["launchctl", "print", target]).returncode == 0:
+            problems.append(f"launchd still has the job loaded; try: launchctl bootout {target}")
+        else:
+            with contextlib.suppress(FileNotFoundError):
+                launchd_plist_path().unlink()
     elif system == "Linux":
+        unit_files = [systemd_unit_dir() / f"{SYSTEMD_UNIT}.{kind}" for kind in ("service", "timer")]
         if systemd_user_available():
             run(["systemctl", "--user", "disable", "--now", f"{SYSTEMD_UNIT}.timer"])
             run(["systemctl", "--user", "stop", f"{SYSTEMD_UNIT}.service"])
-            for name in (f"{SYSTEMD_UNIT}.service", f"{SYSTEMD_UNIT}.timer"):
-                with contextlib.suppress(FileNotFoundError):
-                    (systemd_unit_dir() / name).unlink()
-            run(["systemctl", "--user", "daemon-reload"])
+            still = [unit for unit in (f"{SYSTEMD_UNIT}.timer", f"{SYSTEMD_UNIT}.service")
+                     if run(["systemctl", "--user", "is-active", unit]).stdout.strip()
+                     in ("active", "activating", "reloading")]
+            if still:
+                problems.append(f"systemd still reports {', '.join(still)} as active")
+            else:
+                for path in unit_files:
+                    with contextlib.suppress(FileNotFoundError):
+                        path.unlink()
+                run(["systemctl", "--user", "daemon-reload"])
+        elif any(path.exists() for path in unit_files):
+            problems.append("the systemd user manager is not reachable from this session, so "
+                            "the timer could not be stopped; log in normally and run "
+                            "uninstall again")
         if shutil.which("crontab"):
-            set_cron_line(None)
+            set_cron_line(None)  # raises, without writing, if the crontab cannot be read
+    if problems:
+        raise AppError("Background checks may still be running: " + "; ".join(problems))
     say("Background checks removed.")
 
 
@@ -1329,12 +1386,16 @@ def cmd_setup(paths: Paths, args) -> int:
 
 
 def read_stress_now(paths: Paths, config: dict) -> None:
-    pause = load_state(paths).get("next_oura_request_at")
-    if isinstance(pause, (int, float)) and pause > time.time():
-        until = dt.datetime.fromtimestamp(pause).astimezone().isoformat(timespec="minutes")
-        raise AppError(f"Oura asked us to wait until {until}. Try again after that.")
     with interactive_lock(paths):
-        value = OuraClient(paths, config).stress_high_today(dt.datetime.now().astimezone().date())
+        state = load_state(paths)
+        pause = oura_pause_message(state, time.time())
+        if pause:
+            raise AppError(f"{pause}. Try again after that.")
+        try:
+            value = read_oura_locked(paths, config, dt.datetime.now().astimezone(), state)
+        except RateLimited:
+            write_json_private(paths.state, state)
+            raise
     if value is None:
         say("Oura: connected. No stress data for today yet. It appears after your ring "
             "syncs, and Daytime Stress needs a few days of wear before Oura shows it.")
@@ -1363,7 +1424,7 @@ def cmd_test(paths: Paths, args) -> int:
 def cmd_check(paths: Paths, args) -> int:
     limit = CHECK_TIME_LIMIT_SECONDS + (INTERACTIVE_LOCK_WAIT_SECONDS if args.verify else 0)
     with time_limit(limit):
-        return run_check(paths, verify=args.verify)
+        return run_check(paths, verify=args.verify, run_id=args.run_id)
 
 
 def cmd_install(paths: Paths, args) -> int:
@@ -1514,6 +1575,7 @@ def build_parser() -> argparse.ArgumentParser:
     commands.add_parser("test", help="send a test message and read today's stress")
     check = commands.add_parser("check", help="run one check (the background job runs this)")
     check.add_argument("--verify", action="store_true", help=argparse.SUPPRESS)
+    check.add_argument("--run-id", help=argparse.SUPPRESS)
     commands.add_parser("install", help="start background checks")
     uninstall = commands.add_parser("uninstall", help="stop background checks")
     uninstall.add_argument("--delete-data", action="store_true",
@@ -1542,7 +1604,7 @@ def main(argv=None) -> int:
     except KeyboardInterrupt:
         say("\nStopped.")
         return 130
-    except (AppError, OSError, subprocess.SubprocessError) as exc:
+    except (AppError, OSError, subprocess.SubprocessError, RunTimeout) as exc:
         if args.command == "check":
             log(f"ERROR: {exc}")
         else:

@@ -526,20 +526,24 @@ class SafetyTests(Base):
 
 
 class InstallVerificationTests(Base):
-    def fake_child(self, outcome, code=0, touch=True):
+    def fake_child(self, outcome, code=0, touch=True, same_id=True):
         def run(cmd, **kwargs):
             self.assertIn("--verify", cmd)
             self.assertEqual(kwargs["env"]["OURA_STRESS_HOME"], str(self.paths.root))
+            run_id = cmd[cmd.index("--run-id") + 1] if same_id else "someone-else"
             if touch:
-                ost.record_run(self.paths, time.time(), outcome)
+                ost.record_run(self.paths, time.time(), outcome, run_id)
             return subprocess.CompletedProcess(cmd, code, "", "")
         return run
 
-    def test_verification_passes_only_for_a_real_check(self):
+    def test_verification_passes_only_for_its_own_successful_check(self):
         with mock.patch.object(ost, "run", self.fake_child("ok")):
             ost.verify_background_run(self.paths, "/usr/bin/python3", Path("/s.py"))
+        ost.record_run(self.paths, time.time(), "ok", "stale-receipt")
         for child in (self.fake_child("skipped: another check was running"),
                       self.fake_child("ok", touch=False),
+                      self.fake_child("ok", same_id=False),
+                      self.fake_child("degraded: the Telegram alert failed"),
                       self.fake_child("error: Oura API returned HTTP 500", code=1)):
             with mock.patch.object(ost, "run", child):
                 with self.assertRaises(ost.AppError):
@@ -554,8 +558,9 @@ class InstallVerificationTests(Base):
         self.assertEqual(ost.wait_for_scheduled_run(self.paths, since, timeout=1),
                          "skipped: quiet hours")
         ost.report_scheduled_run("skipped: quiet hours")
-        with self.assertRaises(ost.AppError):
-            ost.report_scheduled_run("paused: Oura needs to be reconnected")
+        for bad in ("paused: Oura needs to be reconnected", "degraded: the Telegram alert failed"):
+            with self.assertRaises(ost.AppError):
+                ost.report_scheduled_run(bad)
 
 
 class ReviewFixTests(Base):
@@ -643,6 +648,87 @@ class ReviewFixTests(Base):
         finally:
             idle.close()
         self.assertEqual(result["code"], "c123456")
+
+    def test_deadline_inside_error_body_read_is_not_swallowed(self):
+        import email.message
+        self.set_state(consecutive_failures=2)  # a counted failure would send a Telegram alert
+
+        class SlowBody(io.BytesIO):
+            def read(self, *args):
+                time.sleep(5)
+                return b""
+
+        def opener(request, timeout=None):
+            raise urllib.error.HTTPError(request.full_url, 500, "boom",
+                                         email.message.Message(), SlowBody())
+        started = time.monotonic()
+        with mock.patch.object(ost._OPENER, "open", opener), \
+                mock.patch.object(ost, "http_request", ost._real_http_request), \
+                mock.patch.object(ost, "send_telegram") as send:
+            with ost.time_limit(1):
+                self.assertEqual(self.check(), 1)
+        self.assertLess(time.monotonic() - started, 2.5)
+        send.assert_not_called()
+        self.assertIn("longer than", self.state()["last_error"])
+
+    def test_timeout_cleanup_happens_while_holding_the_lock(self):
+        import fcntl
+        held_during_write = []
+        real_write = ost.write_json_private
+
+        def watching_write(path, data):
+            if path == self.paths.state and "longer than" in str(data.get("last_error")):
+                with open(self.paths.lock, "a") as other:
+                    try:
+                        fcntl.flock(other.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        held_during_write.append(False)
+                    except OSError:
+                        held_during_write.append(True)
+            return real_write(path, data)
+
+        def slow(*args, **kwargs):
+            time.sleep(5)
+        with mock.patch.object(ost.OuraClient, "stress_high_today", slow), \
+                mock.patch.object(ost, "write_json_private", watching_write):
+            with ost.time_limit(1):
+                self.check()
+        self.assertEqual(held_during_write, [True])
+
+    def test_interactive_read_persists_and_honors_rate_limit(self):
+        self.http.stress = [(429, b"{}", {"retry-after": "7200"})]
+        config = ost.load_config(self.paths)
+        with self.assertRaises(ost.RateLimited):
+            ost.read_stress_now(self.paths, config)
+        self.assertGreater(self.state()["next_oura_request_at"], time.time() + 7000)
+        calls = len(self.http.calls)
+        with self.assertRaises(ost.AppError):
+            ost.read_stress_now(self.paths, config)
+        self.assertEqual(len(self.http.calls), calls)
+
+    def test_uninstall_reports_a_job_that_is_still_loaded(self):
+        plist = Path(self.tmp.name) / "job.plist"
+        plist.write_text("x")
+
+        def still_loaded(cmd, **kwargs):
+            return subprocess.CompletedProcess(cmd, 0 if cmd[1] == "print" else 5, "", "")
+        with mock.patch.object(ost.platform, "system", return_value="Darwin"), \
+                mock.patch.object(ost, "launchd_plist_path", return_value=plist), \
+                mock.patch.object(ost, "run", still_loaded):
+            with self.assertRaises(ost.AppError):
+                ost.uninstall_schedule()
+        self.assertTrue(plist.exists())
+
+    def test_uninstall_reports_unreachable_systemd(self):
+        unit_dir = Path(self.tmp.name) / "units"
+        unit_dir.mkdir()
+        (unit_dir / f"{ost.SYSTEMD_UNIT}.timer").write_text("x")
+        with mock.patch.object(ost.platform, "system", return_value="Linux"), \
+                mock.patch.object(ost, "systemd_unit_dir", return_value=unit_dir), \
+                mock.patch.object(ost, "systemd_user_available", return_value=False), \
+                mock.patch.object(ost.shutil, "which", return_value=None):
+            with self.assertRaises(ost.AppError):
+                ost.uninstall_schedule()
+        self.assertTrue((unit_dir / f"{ost.SYSTEMD_UNIT}.timer").exists())
 
     def test_python_path_keeps_stable_paths(self):
         with mock.patch.object(ost.sys, "executable", "/opt/homebrew/opt/python@3.14/bin/python3.14"):
