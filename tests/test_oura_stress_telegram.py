@@ -1,0 +1,687 @@
+import base64
+import contextlib
+import datetime as dt
+import hashlib
+import io
+import json
+import os
+import plistlib
+import socket
+import stat
+import subprocess
+import sys
+import tempfile
+import textwrap
+import threading
+import time
+import unittest
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+from unittest import mock
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+import oura_stress_telegram as ost  # noqa: E402
+
+BOT_TOKEN = "123456789:AAEexampleexampleexampleexampleexample"
+CHAT_ID = "4242"
+NOON = dt.datetime(2026, 10, 9, 12, 0, tzinfo=dt.timezone.utc)
+
+
+def stress_body(*items):
+    return json.dumps({"data": list(items), "next_token": None}).encode()
+
+
+def today_item(seconds):
+    return {"day": "2026-10-09", "stress_high": seconds}
+
+
+class FakeHttp:
+    """Stands in for ost.http_request. Routes by URL and records every call."""
+
+    def __init__(self, paths):
+        self.paths = paths
+        self.calls = []
+        self.sent = []
+        self.token_calls = []
+        self.stress = []          # queue of (status, body[, headers]); the last one repeats
+        self.telegram_ok = True
+        self.token_response = (200, {"access_token": "access-new-123456",
+                                     "refresh_token": "refresh-new-123456",
+                                     "expires_in": 86400, "token_type": "bearer"})
+        self.tokens_on_disk_at_stress_call = []
+        self.auth_headers = []
+
+    def __call__(self, method, url, data=None, headers=None, timeout=None):
+        assert timeout is None or timeout > 0
+        self.calls.append((method, url))
+        fields = dict(urllib.parse.parse_qsl(data.decode())) if data else {}
+        if url.startswith(ost.OURA_TOKEN_URL):
+            self.token_calls.append(fields)
+            status, payload = self.token_response
+            return status, {}, json.dumps(payload).encode()
+        if url.startswith(ost.OURA_STRESS_URL):
+            self.auth_headers.append((headers or {}).get("Authorization"))
+            with contextlib.suppress(FileNotFoundError):
+                self.tokens_on_disk_at_stress_call.append(
+                    json.loads(self.paths.tokens.read_text()))
+            entry = self.stress[0] if len(self.stress) == 1 else self.stress.pop(0)
+            status, body = entry[0], entry[1]
+            return status, (entry[2] if len(entry) > 2 else {}), body
+        if url.startswith(ost.TELEGRAM_API):
+            if url.endswith("/sendMessage"):
+                if not self.telegram_ok:
+                    return 400, {}, b'{"ok": false, "description": "Bad Request: chat not found"}'
+                self.sent.append(fields["text"])
+            return 200, {}, b'{"ok": true, "result": {}}'
+        raise AssertionError(f"unexpected URL {url}")
+
+
+class Base(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.paths = ost.Paths(Path(self.tmp.name) / "data")
+        ost.write_json_private(self.paths.config, {
+            "telegram_bot_token": BOT_TOKEN, "telegram_chat_id": CHAT_ID,
+            "oura_client_id": "client-id", "oura_client_secret": "client-secret-xyz",
+        })
+        self.write_tokens(expires_in=7 * 86400)
+        self.http = FakeHttp(self.paths)
+        for target, value in ((ost, "http_request"),):
+            patcher = mock.patch.object(target, value, self.http)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.stderr, self.stdout = io.StringIO(), io.StringIO()
+        for name, stream in (("stderr", self.stderr), ("stdout", self.stdout)):
+            patcher = mock.patch.object(sys, name, stream)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def write_tokens(self, expires_in):
+        ost.write_json_private(self.paths.tokens, {
+            "access_token": "access-old-123456", "refresh_token": "refresh-old-123456",
+            "expires_at": int(time.time()) + expires_in, "obtained_at": int(time.time())})
+
+    def state(self):
+        return json.loads(self.paths.state.read_text())
+
+    def set_state(self, **values):
+        ost.write_json_private(self.paths.state, values)
+
+    def check(self, now=NOON):
+        return ost.run_check(self.paths, now=now)
+
+
+class AlertRuleTests(Base):
+    def test_first_increase_of_day(self):
+        self.http.stress = [(200, stress_body(today_item(900)))]
+        self.assertEqual(self.check(), 0)
+        self.assertEqual(len(self.http.sent), 1)
+        self.assertIn("Oura recorded high stress:</b> 15 min today", self.http.sent[0])
+        state = self.state()
+        self.assertEqual((state["last_stress_high"], state["last_date"]), (900, "2026-10-09"))
+        self.assertEqual(state["last_data_day"], "2026-10-09")
+
+    def test_later_increase_sends_delta_and_total(self):
+        self.set_state(last_date="2026-10-09", last_stress_high=900)
+        self.http.stress = [(200, stress_body(today_item(1500)))]
+        self.check()
+        self.assertIn("+10 min (25 min today)", self.http.sent[0])
+        self.assertEqual(self.state()["last_stress_high"], 1500)
+
+    def test_no_increase_sends_nothing(self):
+        self.set_state(last_date="2026-10-09", last_stress_high=900)
+        self.http.stress = [(200, stress_body(today_item(900)))]
+        self.check()
+        self.assertEqual(self.http.sent, [])
+
+    def test_decrease_keeps_high_water_mark(self):
+        self.set_state(last_date="2026-10-09", last_stress_high=900)
+        self.http.stress = [(200, stress_body(today_item(600)))]
+        self.check()
+        self.assertEqual(self.http.sent, [])
+        self.assertEqual(self.state()["last_stress_high"], 900)
+
+    def test_new_day_resets_baseline(self):
+        self.set_state(last_date="2026-10-08", last_stress_high=3000)
+        self.http.stress = [(200, stress_body(today_item(600)))]
+        self.check()
+        self.assertIn("Oura recorded high stress:</b> 10 min", self.http.sent[0])
+
+    def test_sub_minute_values_round_up_to_one(self):
+        self.http.stress = [(200, stress_body(today_item(30)))]
+        self.check()
+        self.assertIn("1 min today", self.http.sent[0])
+        self.set_state(last_date="2026-10-09", last_stress_high=60)
+        self.http.stress = [(200, stress_body(today_item(90)))]
+        self.check()
+        self.assertIn("+1 min (1 min today)", self.http.sent[1])
+
+    def test_min_increase_setting_batches_small_increases(self):
+        config = json.loads(self.paths.config.read_text())
+        config["settings"] = {"min_increase_minutes": 10}
+        ost.write_json_private(self.paths.config, config)
+        self.http.stress = [(200, stress_body(today_item(300)))]
+        self.check()
+        self.assertEqual(self.http.sent, [])
+        self.assertEqual(self.state()["last_stress_high"], 0)
+        self.http.stress = [(200, stress_body(today_item(600)))]
+        self.check()
+        self.assertIn("10 min today", self.http.sent[0])
+
+    def test_send_failure_keeps_baseline_and_records_delivery_error(self):
+        self.http.stress = [(200, stress_body(today_item(900)))]
+        self.http.telegram_ok = False
+        self.assertEqual(self.check(), 0)
+        state = self.state()
+        self.assertEqual(state["last_stress_high"], 0)
+        self.assertIn("chat not found", state["delivery_error"])
+        self.http.telegram_ok = True
+        self.check()
+        self.assertIn("Oura recorded high stress", self.http.sent[0])
+        self.assertEqual(self.state()["last_stress_high"], 900)
+        self.assertIsNone(self.state()["delivery_error"])
+
+    def test_picks_todays_record_regardless_of_order(self):
+        self.http.stress = [(200, stress_body(
+            {"day": "2026-10-10", "stress_high": 7000}, today_item(600),
+            {"day": "2026-10-08", "stress_high": 5000}))]
+        self.check()
+        self.assertIn("10 min", self.http.sent[0])
+        query = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.http.calls[0][1]).query))
+        self.assertEqual(query, {"start_date": "2026-10-08", "end_date": "2026-10-10"})
+
+    def test_no_data_yet_is_healthy_but_not_data(self):
+        self.set_state(consecutive_failures=2, last_error="x")
+        for body in (stress_body(), stress_body(today_item(None)),
+                     stress_body({"day": "2026-10-09"})):
+            self.http.stress = [(200, body)]
+            self.assertEqual(self.check(), 0)
+            self.assertEqual(self.http.sent, [])
+            self.assertEqual(self.state()["consecutive_failures"], 0)
+            self.assertNotIn("last_data_day", self.state())
+
+    def test_measured_zero_counts_as_data(self):
+        self.http.stress = [(200, stress_body(today_item(0)))]
+        self.check()
+        self.assertEqual(self.http.sent, [])
+        self.assertEqual(self.state()["last_data_day"], "2026-10-09")
+
+
+class QuietHoursTests(Base):
+    def test_default_quiet_hours_skip_network(self):
+        early = dt.datetime(2026, 10, 9, 7, 59, tzinfo=dt.timezone.utc)
+        self.assertEqual(self.check(early), 0)
+        self.assertEqual(self.http.calls, [])
+        self.http.stress = [(200, stress_body())]
+        self.check(early.replace(hour=8, minute=0))
+        self.assertEqual(len(self.http.calls), 1)
+
+    def test_verify_mode_ignores_quiet_hours(self):
+        self.http.stress = [(200, stress_body())]
+        early = dt.datetime(2026, 10, 9, 3, 0, tzinfo=dt.timezone.utc)
+        self.assertEqual(ost.run_check(self.paths, now=early, verify=True), 0)
+        self.assertEqual(len(self.http.calls), 1)
+        self.assertEqual(ost.read_last_run(self.paths)["outcome"], "ok")
+
+    def test_quiet_hours_skip_is_recorded_as_a_skip(self):
+        self.check(dt.datetime(2026, 10, 9, 3, 0, tzinfo=dt.timezone.utc))
+        self.assertEqual(ost.read_last_run(self.paths)["outcome"], "skipped: quiet hours")
+
+    def test_windows(self):
+        q = ost.in_quiet_hours
+        self.assertTrue(q(dt.time(23, 0), "22:00", "08:00"))
+        self.assertTrue(q(dt.time(7, 59), "22:00", "08:00"))
+        self.assertFalse(q(dt.time(12, 0), "22:00", "08:00"))
+        self.assertFalse(q(dt.time(8, 0), "22:00", "08:00"))
+        self.assertTrue(q(dt.time(13, 30), "13:00", "14:00"))
+        self.assertFalse(q(dt.time(3, 0), "00:00", "00:00"))
+        with self.assertRaises(ost.AppError):
+            ost.parse_hhmm("8am")
+
+
+class FailureTests(Base):
+    def test_three_failures_alert_once_then_recovery_message(self):
+        self.http.stress = [(500, b"oops")]
+        for _ in range(4):
+            self.assertEqual(self.check(), 1)
+        self.assertEqual(len(self.http.sent), 1)
+        self.assertIn("having trouble", self.http.sent[0])
+        self.assertIn("HTTP 500", self.http.sent[0])
+        self.assertIn(" status</code>", self.http.sent[0])
+        self.assertEqual(self.state()["consecutive_failures"], 4)
+        self.http.stress = [(200, stress_body())]
+        self.assertEqual(self.check(), 0)
+        self.assertIn("working again", self.http.sent[1])
+        self.assertFalse(self.state()["failure_alerted"])
+        self.check()
+        self.assertEqual(len(self.http.sent), 2)
+
+    def test_network_error_counts_as_failure(self):
+        def broken(*args, **kwargs):
+            raise ost.NetworkError("Could not reach api.ouraring.com: offline")
+        with mock.patch.object(ost, "http_request", broken):
+            self.assertEqual(self.check(), 1)
+        self.assertEqual(self.state()["consecutive_failures"], 1)
+
+    def test_unexpected_schema_is_failure(self):
+        self.http.stress = [(200, b'{"nope": 1}')]
+        self.assertEqual(self.check(), 1)
+        self.assertIn("unexpected", self.state()["last_error"])
+
+    def test_403_explains_membership(self):
+        self.http.stress = [(403, b"{}")]
+        self.check()
+        self.assertIn("Membership", self.state()["last_error"])
+
+    def test_missing_setup_is_reported(self):
+        ost.write_json_private(self.paths.config, {})
+        self.assertEqual(self.check(), 1)
+        self.assertIn("setup is not finished", self.stderr.getvalue())
+
+    def test_retry_after_pauses_oura_requests(self):
+        self.http.stress = [(429, b"{}", {"retry-after": "1800"})]
+        self.assertEqual(self.check(), 1)
+        self.assertEqual(self.state()["next_oura_request_at"], int(NOON.timestamp()) + 1800)
+        calls = len(self.http.calls)
+        later = NOON + dt.timedelta(minutes=10)
+        self.assertEqual(self.check(later), 0)
+        self.assertEqual(len(self.http.calls), calls)
+        self.assertEqual(self.state()["consecutive_failures"], 1)
+        self.http.stress = [(200, stress_body())]
+        self.assertEqual(self.check(NOON + dt.timedelta(minutes=31)), 0)
+        self.assertIsNone(self.state()["next_oura_request_at"])
+
+    def test_retry_after_is_capped_and_defaulted(self):
+        self.assertEqual(ost.retry_after_seconds({"retry-after": "7200"}), 7200)
+        self.assertEqual(ost.retry_after_seconds({"retry-after": "999999"}), 86400)
+        self.assertEqual(ost.retry_after_seconds({}), ost.DEFAULT_RETRY_AFTER_SECONDS)
+        self.assertEqual(ost.retry_after_seconds({"retry-after": "soon"}),
+                         ost.DEFAULT_RETRY_AFTER_SECONDS)
+
+    def test_whole_run_time_limit(self):
+        def slow(*args, **kwargs):
+            time.sleep(5)
+            raise AssertionError("should have been interrupted")
+        with mock.patch.object(ost, "http_request", slow):
+            started = time.monotonic()
+            with ost.time_limit(1):
+                self.assertEqual(self.check(), 1)
+            self.assertLess(time.monotonic() - started, 4)
+        self.assertIn("longer than", self.state()["last_error"])
+
+
+class TokenTests(Base):
+    def test_refresh_before_expiry_is_saved_before_use(self):
+        self.write_tokens(expires_in=60)
+        self.http.stress = [(200, stress_body())]
+        self.assertEqual(self.check(), 0)
+        call = self.http.token_calls[0]
+        self.assertEqual((call["grant_type"], call["refresh_token"], call["client_secret"]),
+                         ("refresh_token", "refresh-old-123456", "client-secret-xyz"))
+        self.assertEqual(self.http.tokens_on_disk_at_stress_call[0]["refresh_token"],
+                         "refresh-new-123456")
+        self.assertEqual(self.http.auth_headers, ["Bearer access-new-123456"])
+
+    def test_401_refreshes_once_then_retries(self):
+        self.http.stress = [(401, b"{}"), (200, stress_body())]
+        self.assertEqual(self.check(), 0)
+        self.assertEqual(len(self.http.token_calls), 1)
+        self.assertEqual(self.http.auth_headers,
+                         ["Bearer access-old-123456", "Bearer access-new-123456"])
+
+    def test_invalid_grant_pauses_and_notifies(self):
+        self.write_tokens(expires_in=0)
+        self.http.token_response = (400, {"error": "invalid_grant"})
+        self.assertEqual(self.check(), 1)
+        state = self.state()
+        self.assertTrue(state["needs_reconnect"])
+        self.assertTrue(state["reconnect_notice_sent"])
+        self.assertIn("connect-oura</code>", self.http.sent[0])
+        self.assertIn(ost.SCRIPT_NAME, self.http.sent[0])
+        # The test folder is not the default one, so the command must carry it.
+        self.assertIn("OURA_STRESS_HOME=", self.http.sent[0])
+        self.assertEqual(ost.read_last_run(self.paths)["outcome"],
+                         "paused: Oura needs to be reconnected")
+        calls = len(self.http.calls)
+        self.assertEqual(self.check(), 1)
+        self.assertEqual(len(self.http.calls), calls)  # paused: no requests at all
+        self.assertEqual(len(self.http.sent), 1)
+
+    def test_reconnect_notice_retried_until_delivered(self):
+        self.write_tokens(expires_in=0)
+        self.http.token_response = (400, {"error": "invalid_grant"})
+        self.http.telegram_ok = False
+        self.check()
+        self.assertFalse(self.state()["reconnect_notice_sent"])
+        oura_calls = [c for c in self.http.calls if "ouraring" in c[1]]
+        self.check()  # still failing: tries Telegram again, not Oura
+        self.assertEqual([c for c in self.http.calls if "ouraring" in c[1]], oura_calls)
+        self.http.telegram_ok = True
+        self.check()
+        self.assertTrue(self.state()["reconnect_notice_sent"])
+        self.assertEqual(len(self.http.sent), 1)
+        self.check()
+        self.assertEqual(len(self.http.sent), 1)
+
+    def test_second_401_needs_reconnect(self):
+        self.http.stress = [(401, b"{}")]
+        self.assertEqual(self.check(), 1)
+        self.assertTrue(self.state()["needs_reconnect"])
+
+    def test_lost_tokens_land_on_reconnect_path(self):
+        self.paths.tokens.unlink()
+        self.assertEqual(self.check(), 1)
+        self.assertTrue(self.state()["needs_reconnect"])
+        self.assertIn("connect-oura", self.http.sent[0])
+
+    def test_lost_refresh_response_lands_on_reconnect_path(self):
+        """Oura rotated the token but the reply never arrived: the old one is spent."""
+        self.write_tokens(expires_in=0)
+        real = self.http
+
+        def drop_token_reply(method, url, **kwargs):
+            if url.startswith(ost.OURA_TOKEN_URL):
+                real.token_response = (400, {"error": "invalid_grant"})  # server rotated
+                raise ost.NetworkError("Could not reach api.ouraring.com: timed out")
+            return real(method, url, **kwargs)
+        with mock.patch.object(ost, "http_request", drop_token_reply):
+            self.assertEqual(self.check(), 1)
+        self.assertEqual(self.state()["consecutive_failures"], 1)
+        self.assertEqual(json.loads(self.paths.tokens.read_text())["refresh_token"],
+                         "refresh-old-123456")
+        self.assertEqual(self.check(), 1)
+        self.assertTrue(self.state()["needs_reconnect"])
+        self.assertIn("connect-oura", self.http.sent[0])
+
+    def test_failed_token_save_lands_on_reconnect_path(self):
+        self.write_tokens(expires_in=0)
+        real_write = ost.write_json_private
+
+        def failing_write(path, data):
+            if path == self.paths.tokens:
+                raise OSError(28, "No space left on device")
+            return real_write(path, data)
+        with mock.patch.object(ost, "write_json_private", failing_write):
+            self.assertEqual(self.check(), 1)
+        self.assertIn("No space left", self.state()["last_error"])
+        self.http.token_response = (400, {"error": "invalid_grant"})  # old token was spent
+        self.assertEqual(self.check(), 1)
+        self.assertTrue(self.state()["needs_reconnect"])
+
+    def test_tokens_from_response_defaults(self):
+        tokens = ost.tokens_from_response({"access_token": "a" * 10}, 1000.0, "old-refresh")
+        self.assertEqual(tokens["expires_at"], 1000 + ost.DEFAULT_TOKEN_LIFETIME_SECONDS)
+        self.assertEqual(tokens["refresh_token"], "old-refresh")
+
+
+class SafetyTests(Base):
+    def test_files_are_private(self):
+        self.http.stress = [(200, stress_body())]
+        self.check()
+        self.assertEqual(stat.S_IMODE(os.stat(self.paths.root).st_mode), 0o700)
+        for path in (self.paths.config, self.paths.tokens, self.paths.state):
+            self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o600, path)
+
+    def test_all_credentials_are_redacted_including_encoded(self):
+        code, verifier, secret = "authcode-QQ+/=zz", "verifier-RR+/=yy", "client-secret-xyz"
+        ost.load_config(self.paths)
+        ost.load_tokens(self.paths)
+        ost.handle_redirect_query(urllib.parse.urlencode({"code": code, "state": "s"}), "s")
+        ost.remember_secret(verifier)
+        raw = (f"{BOT_TOKEN} refresh-old-123456 {secret} {code} {verifier} "
+               f"{urllib.parse.quote(code, safe='')} {urllib.parse.quote_plus(verifier)}")
+        text = ost.redact(raw)
+        for value in (BOT_TOKEN, "refresh-old-123456", secret, code, verifier,
+                      urllib.parse.quote(code, safe=""), urllib.parse.quote_plus(verifier)):
+            self.assertNotIn(value, text)
+        self.assertNotIn("987654321:" + "B" * 35, ost.redact("x 987654321:" + "B" * 35))
+
+    def test_token_exchange_failure_does_not_leak(self):
+        self.http.token_response = (500, {"error": "server_error"})
+        with self.assertRaises(ost.OuraError) as ctx:
+            ost.token_request({"oura_client_id": "id", "oura_client_secret": "sek-123456"},
+                              {"grant_type": "authorization_code", "code": "code-777777",
+                               "code_verifier": "ver-888888"})
+        message = str(ctx.exception)
+        for value in ("sek-123456", "code-777777", "ver-888888"):
+            self.assertNotIn(value, message)
+
+    def test_error_reason_is_html_escaped(self):
+        self.set_state(consecutive_failures=2)
+        with mock.patch.object(ost.OuraClient, "stress_high_today",
+                               side_effect=ost.OuraError("<b>bad</b> & worse")):
+            self.check()
+        self.assertIn("&lt;b&gt;bad&lt;/b&gt; &amp; worse", self.http.sent[0])
+
+    def test_lock_held_by_another_process_skips_check(self):
+        script = textwrap.dedent(f"""
+            import sys, time
+            sys.path.insert(0, {str(ROOT)!r})
+            import oura_stress_telegram as ost
+            from pathlib import Path
+            with ost.run_lock(ost.Paths(Path({str(self.paths.root)!r}))) as held:
+                print("held" if held else "busy", flush=True)
+                time.sleep(3)
+        """)
+        child = subprocess.Popen([sys.executable, "-c", script], stdout=subprocess.PIPE, text=True)
+        try:
+            self.assertEqual(child.stdout.readline().strip(), "held")
+            self.assertEqual(self.check(), 0)
+            self.assertEqual(self.http.calls, [])
+            self.assertIn("SKIP", self.stderr.getvalue())
+            with self.assertRaises(ost.AppError):
+                with mock.patch.object(ost, "INTERACTIVE_LOCK_WAIT_SECONDS", 0.5):
+                    with ost.interactive_lock(self.paths):
+                        pass
+        finally:
+            child.wait(timeout=10)
+        with ost.interactive_lock(self.paths):
+            pass
+
+    def test_corrupt_state_starts_fresh(self):
+        self.paths.state.write_text("{not json")
+        self.http.stress = [(200, stress_body(today_item(120)))]
+        self.assertEqual(self.check(), 0)
+        self.assertEqual(self.state()["last_stress_high"], 120)
+
+    def test_commands_in_messages_are_absolute(self):
+        with mock.patch.dict(os.environ, {"OURA_STRESS_HOME": ""}):
+            with mock.patch.object(ost, "default_paths",
+                                   return_value=ost.Paths(ost.default_root())):
+                command = ost.command_for("connect-oura")
+        self.assertTrue(command.split()[0].startswith(("/", "'/")))
+        self.assertIn(ost.SCRIPT_NAME, command)
+        self.assertNotIn("OURA_STRESS_HOME", command)
+
+    def test_recovery_command_works_from_a_clean_shell_with_custom_folder(self):
+        command = ost.command_for("status", self.paths)
+        self.assertIn("OURA_STRESS_HOME=", command)
+        env = {"HOME": self.tmp.name, "PATH": "/usr/bin:/bin"}
+        result = subprocess.run(["/bin/sh", "-c", command], env=env, capture_output=True,
+                                text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(f"Settings folder: {self.paths.root.resolve()}", result.stdout)
+        self.assertIn("Telegram set up: yes", result.stdout)
+        self.assertNotIn(BOT_TOKEN, result.stdout)
+
+    def test_lock_contention_is_recorded_as_a_skip(self):
+        with ost.run_lock(self.paths):
+            pass
+        held = ost.run_lock(self.paths)
+        with held:
+            child = subprocess.run(
+                [sys.executable, str(ROOT / ost.SCRIPT_NAME), "check"],
+                env={"HOME": self.tmp.name, "PATH": "/usr/bin:/bin",
+                     "OURA_STRESS_HOME": str(self.paths.root)},
+                capture_output=True, text=True, timeout=60)
+        self.assertEqual(child.returncode, 0)
+        self.assertEqual(ost.read_last_run(self.paths)["outcome"],
+                         "skipped: another check was running")
+
+
+class InstallVerificationTests(Base):
+    def fake_child(self, outcome, code=0, touch=True):
+        def run(cmd, **kwargs):
+            self.assertIn("--verify", cmd)
+            self.assertEqual(kwargs["env"]["OURA_STRESS_HOME"], str(self.paths.root))
+            if touch:
+                ost.record_run(self.paths, time.time(), outcome)
+            return subprocess.CompletedProcess(cmd, code, "", "")
+        return run
+
+    def test_verification_passes_only_for_a_real_check(self):
+        with mock.patch.object(ost, "run", self.fake_child("ok")):
+            ost.verify_background_run(self.paths, "/usr/bin/python3", Path("/s.py"))
+        for child in (self.fake_child("skipped: another check was running"),
+                      self.fake_child("ok", touch=False),
+                      self.fake_child("error: Oura API returned HTTP 500", code=1)):
+            with mock.patch.object(ost, "run", child):
+                with self.assertRaises(ost.AppError):
+                    ost.verify_background_run(self.paths, "/usr/bin/python3", Path("/s.py"))
+
+    def test_scheduled_run_must_be_observed(self):
+        since = time.time()
+        self.assertIsNone(ost.wait_for_scheduled_run(self.paths, since, timeout=0.2))
+        with self.assertRaises(ost.AppError):
+            ost.report_scheduled_run(None)
+        ost.record_run(self.paths, since + 0.1, "skipped: quiet hours")
+        self.assertEqual(ost.wait_for_scheduled_run(self.paths, since, timeout=1),
+                         "skipped: quiet hours")
+        ost.report_scheduled_run("skipped: quiet hours")
+        with self.assertRaises(ost.AppError):
+            ost.report_scheduled_run("paused: Oura needs to be reconnected")
+
+
+class OAuthTests(unittest.TestCase):
+    def test_pkce_pair(self):
+        verifier, challenge = ost.pkce_pair()
+        self.assertTrue(43 <= len(verifier) <= 128)
+        expected = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+        self.assertEqual(challenge, expected.rstrip(b"=").decode())
+
+    def test_redirect_query(self):
+        handle = ost.handle_redirect_query
+        self.assertEqual(handle("code=abc123&state=s1", "s1"), {"code": "abc123"})
+        self.assertIn("did not match", handle("code=abc&state=evil", "s1")["error"])
+        self.assertIn("access_denied", handle("error=access_denied&state=s1", "s1")["error"])
+        self.assertIn("did not return", handle("state=s1", "s1")["error"])
+
+    def test_callback_server_accepts_only_matching_state_and_logs_nothing(self):
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
+        result, done = {}, threading.Event()
+        captured = io.StringIO()
+        with mock.patch.object(sys, "stderr", captured):
+            servers = ost.start_callback_servers(port, ost._callback_handler("good", result, done))
+            try:
+                self.assertTrue(servers)
+                base = f"http://127.0.0.1:{port}/callback"
+                with self.assertRaises(urllib.error.HTTPError):
+                    urllib.request.urlopen(f"{base}?code=x&state=bad", timeout=5)
+                self.assertFalse(done.is_set())
+                with urllib.request.urlopen(f"{base}?code=secret-code-999&state=good",
+                                            timeout=5) as response:
+                    self.assertIn(b"Connected", response.read())
+                self.assertTrue(done.is_set())
+                self.assertEqual(result["code"], "secret-code-999")
+            finally:
+                for server in servers:
+                    server.shutdown()
+                    server.server_close()
+        self.assertNotIn("secret-code-999", captured.getvalue())
+
+    def test_authorization_code_exchange_fields(self):
+        captured = {}
+
+        def fake(method, url, data=None, headers=None, timeout=None):
+            captured.update(urllib.parse.parse_qsl(data.decode()))
+            return 200, {}, json.dumps({"access_token": "a" * 12, "refresh_token": "r" * 12,
+                                        "expires_in": 100}).encode()
+        with mock.patch.object(ost, "http_request", fake):
+            ost.token_request({"oura_client_id": "id", "oura_client_secret": "sec"},
+                              {"grant_type": "authorization_code", "code": "c",
+                               "redirect_uri": ost.redirect_uri(8765), "code_verifier": "v"})
+        self.assertEqual(captured["client_id"], "id")
+        self.assertEqual(captured["redirect_uri"], "http://localhost:8765/callback")
+        self.assertEqual(captured["code_verifier"], "v")
+
+
+class TelegramPairingTests(unittest.TestCase):
+    def test_only_the_code_from_a_private_chat_pairs(self):
+        updates = [
+            {"update_id": 1, "message": {"chat": {"id": 5, "type": "private"}, "text": "hi"}},
+            {"update_id": 2, "message": {"chat": {"id": -100, "type": "group"}, "text": "AB12CD"}},
+            {"update_id": 3, "message": {"chat": {"id": 9, "type": "private"}, "text": "ab12cd"}},
+            {"update_id": 4, "message": "weird"},
+        ]
+        self.assertEqual(ost.find_paired_chat(updates, "AB12CD")["id"], 9)
+        self.assertIsNone(ost.find_paired_chat(updates[:2], "AB12CD"))
+        self.assertEqual(len(ost.pairing_code()), 6)
+
+    def test_polling_advances_offset_until_code_arrives(self):
+        batches = [
+            [{"update_id": 10, "message": {"chat": {"id": 5, "type": "private"}, "text": "hi"}}],
+            [{"update_id": 11, "message": {"chat": {"id": 7, "type": "private"}, "text": "XY34ZW"}}],
+        ]
+        seen = []
+
+        def fake(method, url, data=None, headers=None, timeout=None):
+            seen.append(dict(urllib.parse.parse_qsl(data.decode())))
+            return 200, {}, json.dumps({"ok": True, "result": batches.pop(0)}).encode()
+        with mock.patch.object(ost, "http_request", fake):
+            chat = ost.wait_for_pairing(BOT_TOKEN, "XY34ZW", wait_seconds=60)
+        self.assertEqual(chat["id"], 7)
+        self.assertNotIn("offset", seen[0])
+        self.assertEqual(seen[1]["offset"], "11")
+
+    def test_conflict_explains_new_bot(self):
+        def fake(method, url, data=None, headers=None, timeout=None):
+            return 409, {}, b'{"ok": false, "description": "Conflict: terminated by other getUpdates request"}'
+        with mock.patch.object(ost, "http_request", fake):
+            with self.assertRaises(ost.AppError) as ctx:
+                ost.wait_for_pairing(BOT_TOKEN, "AAAAAA", wait_seconds=5)
+        self.assertIn("new bot", str(ctx.exception))
+
+
+class ScheduleTests(unittest.TestCase):
+    def test_launchd_plist(self):
+        data = plistlib.loads(ost.launchd_plist("/usr/bin/python3", Path("/x y/s'q.py"),
+                                                Path("/d d"), 5))
+        self.assertEqual(data["Label"], ost.LAUNCHD_LABEL)
+        self.assertEqual(data["ProgramArguments"], ["/usr/bin/python3", "/x y/s'q.py", "check"])
+        self.assertEqual(data["StartInterval"], 300)
+        self.assertEqual(data["EnvironmentVariables"], {"OURA_STRESS_HOME": "/d d"})
+
+    def test_cron_line_quotes_paths_and_escapes_percent(self):
+        line = ost.cron_line("/usr/bin/python3", Path("/home/a b/it's 100%.py"), Path("/d"), 10,
+                             Path("/d/check.log"))
+        self.assertTrue(line.startswith("*/10 * * * * OURA_STRESS_HOME=/d "))
+        self.assertIn("100\\%.py", line)
+        self.assertNotIn("100%.py", line.replace("\\%", ""))
+        self.assertTrue(line.endswith(ost.CRON_MARKER))
+
+    def test_systemd_units(self):
+        service, timer = ost.systemd_units("/usr/bin/python3", Path("/s $x 5%.py"),
+                                           Path("/d 1"), 5)
+        self.assertIn('ExecStart="/usr/bin/python3" "/s $$x 5%%.py" check', service)
+        self.assertIn('Environment="OURA_STRESS_HOME=/d 1"', service)
+        self.assertIn("OnUnitActiveSec=5min", timer)
+
+    def test_scheduled_command_runs_with_minimal_environment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data = Path(tmp) / "data with space"
+            env = {"HOME": tmp, "PATH": "/usr/bin:/bin", "OURA_STRESS_HOME": str(data)}
+            result = subprocess.run([sys.executable, str(ROOT / ost.SCRIPT_NAME), "check"],
+                                    env=env, capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("setup is not finished", result.stderr)
+            self.assertTrue(data.is_dir())
+
+
+if __name__ == "__main__":
+    unittest.main()
