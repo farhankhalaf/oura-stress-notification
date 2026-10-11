@@ -1,6 +1,6 @@
 # Oura stress notification
 
-A gentle Telegram nudge on your iPhone when Oura records more high stress.
+A gentle push notification on your iPhone when Oura records more high stress.
 
 Free and open source. Runs on your Mac or Linux computer. No coding required.
 
