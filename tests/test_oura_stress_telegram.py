@@ -253,7 +253,7 @@ class FailureTests(Base):
         self.assertEqual(len(self.http.sent), 1)
         self.assertIn("having trouble", self.http.sent[0])
         self.assertIn("HTTP 500", self.http.sent[0])
-        self.assertIn(" status</code>", self.http.sent[0])
+        self.assertRegex(self.http.sent[0], r" (?:&#x27;)?status(?:&#x27;)?</code>")
         self.assertEqual(self.state()["consecutive_failures"], 4)
         self.http.stress = [(200, stress_body())]
         self.assertEqual(self.check(), 0)
@@ -343,7 +343,7 @@ class TokenTests(Base):
         state = self.state()
         self.assertTrue(state["needs_reconnect"])
         self.assertTrue(state["reconnect_notice_sent"])
-        self.assertIn("connect-oura</code>", self.http.sent[0])
+        self.assertRegex(self.http.sent[0], r"connect-oura(?:&#x27;)?</code>")
         self.assertIn(ost.SCRIPT_NAME, self.http.sent[0])
         # The test folder is not the default one, so the command must carry it.
         self.assertIn("OURA_STRESS_HOME=", self.http.sent[0])
@@ -377,7 +377,7 @@ class TokenTests(Base):
         self.assertEqual(self.check(), 1)
         self.assertTrue(self.state()["needs_reconnect"])
         self.assertTrue(self.state()["reconnect_notice_sent"])
-        self.assertIn("connect-oura</code>", self.http.sent[0])
+        self.assertRegex(self.http.sent[0], r"connect-oura(?:&#x27;)?</code>")
         self.assertIn("Sleep, readiness, and activity", self.http.sent[0])
         self.assertEqual(self.check(), 1)
         self.assertEqual(len(self.http.token_calls), 1)
@@ -554,6 +554,10 @@ class SafetyTests(Base):
         command = ost.command_for("status", self.paths)
         if os.name == "nt":
             self.assertIn("--data-dir", command)
+            command = ("$ErrorActionPreference='Stop'; "
+                       "[Console]::InputEncoding=[Text.UTF8Encoding]::new($false); "
+                       "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); "
+                       + command + "; exit $LASTEXITCODE")
             encoded = base64.b64encode(command.encode("utf-16-le")).decode("ascii")
             cmd = [ost.windows_powershell(), "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded]
             env = ost.scheduled_environment(self.paths)
@@ -561,8 +565,9 @@ class SafetyTests(Base):
             self.assertIn("OURA_STRESS_HOME=", command)
             cmd = ["/bin/sh", "-c", command]
             env = {"HOME": self.tmp.name, "PATH": "/usr/bin:/bin"}
-        result = subprocess.run(cmd, env=env, capture_output=True,
-                                encoding="utf-8", timeout=60)
+        result = subprocess.run(cmd, env=env, capture_output=True, encoding="utf-8",
+                                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                                timeout=60)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(f"Settings folder: {self.paths.root.resolve()}", result.stdout)
         self.assertIn("Telegram set up: yes", result.stdout)
@@ -670,7 +675,7 @@ class ReviewFixTests(Base):
         self.http.token_response = (401, {"error": "invalid_client"})
         self.check()
         self.assertEqual(self.state()["reconnect_action"], "setup")
-        self.assertIn(" setup</code>", self.http.sent[0])
+        self.assertRegex(self.http.sent[0], r" (?:&#x27;)?setup(?:&#x27;)?</code>")
 
     def test_truncated_response_counts_as_failure(self):
         import http.client

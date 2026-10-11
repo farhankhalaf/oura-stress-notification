@@ -253,9 +253,9 @@ class NativeWindowsTests(unittest.TestCase):
         ost.write_json_private(self.paths.config, {})
         command = ost.command_for("status", self.paths, prefer_installed=False)
         # Avoid inheriting a console encoding into Python's redirected output.
-        result = self.ps("$env:PYTHONIOENCODING='utf-8'; " + command)
+        result = self.ps("$env:PYTHONIOENCODING='utf-8'; " + command + "; exit $LASTEXITCODE")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn(str(self.root), result.stdout)
+        self.assertIn(str(self.root.resolve()), result.stdout)
 
     def test_pythonw_records_an_isolated_failed_check(self):
         exe = ost.windows_pythonw()
