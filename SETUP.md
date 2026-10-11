@@ -27,6 +27,28 @@ Expect **🧪 Test from Oura stress alerts. Telegram works.** Confirm that it ap
 - Keep the Oura app syncing your ring. Alerts describe **what Oura recorded**, with a delay; they are not an instant stress alarm.
 - Ask your agent **"Stop the Oura alerts"** to remove the background job. Your saved connection can be kept for later.
 
+### Bot profile picture
+
+Setup automatically adds the included [ring image](bot-avatar.jpg) to a bot without
+a profile photo. Existing custom photos are kept. The image is an AI-generated,
+unbranded smart ring, not official Oura artwork. It is included under this
+repository's MIT license.
+
+To apply or restore the ring image later, run from the project folder:
+
+```bash
+python3 oura_stress_telegram.py set-bot-photo
+```
+
+Use `python` or your chosen interpreter on Windows. This replaces the bot's current
+profile picture. Keep `bot-avatar.jpg` beside the script; the installer copies it
+alongside the installed program. A missing image or failed upload does not stop
+guided setup or stress alerts. You can also set a different image through
+BotFather's `/setuserpic` command. The bot picture does not replace Telegram's app
+icon; its appearance in notifications depends on Telegram and iOS.
+
+The upload uses Telegram's [setMyProfilePhoto API](https://core.telegram.org/bots/api#setmyprofilephoto).
+
 ## Manual setup
 
 ### Windows

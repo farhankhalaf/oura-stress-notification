@@ -54,6 +54,15 @@ Open [Telegram Web](https://web.telegram.org/) or Telegram Desktop on the comput
 4. They open their new bot, press **Start**, and send the six-character pairing code shown by setup as a normal private message.
 5. Confirm the bot's pairing confirmation arrives. That verifies the chat connection; the phone notification is checked separately below.
 
+Setup adds the bundled [ring profile picture](bot-avatar.jpg) if the bot has no photo.
+It keeps an existing custom photo. The picture is a generated, unbranded smart-ring
+illustration, not an official Oura asset. If the upload fails, continue setup and
+retry with `python3 oura_stress_telegram.py set-bot-photo` from the project folder
+(use the chosen Python on Windows). That command replaces the current bot photo.
+No additional BotFather step is needed. This sets the bot's avatar; Telegram and
+iOS control whether it appears in a notification and still identify Telegram as
+the delivering app.
+
 ### Oura
 
 Have them sign in at <https://developer.ouraring.com/applications> and choose **Create New**. Explain that Oura calls this an "application", but they are only filling in a connection form.

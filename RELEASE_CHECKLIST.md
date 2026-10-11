@@ -61,6 +61,18 @@ illustrative README image after that device check.
 |---|---|---|---|---|
 | 2026-10-10 | 0.1.0 | Farhan + Codex | macOS 26.5.2 (arm64) | Passed the tested macOS setup and recovery paths after the live-tested fixes; later review-driven fixes are unit-tested only: fresh app, Telegram pairing/delivery, automatic and pasted callbacks, real stress read, launchd startup, forced refresh and spent-token recovery. 80 tests pass on both local Python versions after follow-up review fixes. Exceptions: assisted existing account without timing; logout/login and revocation await approval; live Linux scheduling not tested. |
 | 2026-10-10 | 0.2.0 | Farhan + Codex | macOS, Linux and Windows CI | 112 tests pass on all seven CI targets, including native Windows permissions, locking, scheduler lifecycle and full scheduler installation with synthetic API responses. Live Windows account setup, standard-user installation, logout/login and phone delivery not performed. Opus 5.5 proposal review: 75 then 87 at the round limit; final code and both GIFs light-reviewed at xhigh: 85. Supported fixes were tested after review, without another model round. Demos use example data. |
+| 2026-10-11 | 0.2.1 | Farhan + Codex | macOS | Ring profile picture uploaded to the dedicated bot through Telegram's API, read back and visually verified. 123 tests pass on both local Python versions, with 10 Windows-only skips. New setup preserves existing photos and treats an avatar failure as nonfatal. Real-data alert sent, but an iOS notification banner and replacement recording remain unverified. Earlier live-platform and fresh-user deviations remain. |
+
+### 2026-10-11 bot picture
+
+The repository includes a generated, unbranded ring JPEG. Guided setup sets it only
+when the bot has no profile photo. The explicit `set-bot-photo` command applies it
+to an existing bot, and installation keeps the asset beside the copied program.
+Tests cover multipart JPEG bytes, preserving custom photos, upload errors and
+secret redaction, continued pairing after an image failure, and installed assets.
+The live upload was verified by retrieving Telegram's latest profile image and
+checking the public bot profile. This verifies the avatar, not its placement in an
+iPhone notification. README recording work is still pending.
 
 ### 2026-10-10 live run details
 

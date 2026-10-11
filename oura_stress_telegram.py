@@ -48,8 +48,9 @@ from pathlib import Path
 from typing import Dict, Iterator, Optional, Tuple
 
 APP = "oura-stress-telegram"
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 SCRIPT_NAME = "oura_stress_telegram.py"
+BOT_PHOTO_NAME = "bot-avatar.jpg"
 PROJECT_URL = "https://github.com/fkb032/oura-stress-notification"
 
 OURA_APPS_URL = "https://developer.ouraring.com/applications"
@@ -679,6 +680,10 @@ def telegram_call(token: str, method: str, params: Optional[Dict[str, str]] = No
     status, _, body = http_request("POST", f"{TELEGRAM_API}/bot{token}/{method}",
                                    data=form(params or {}), headers=FORM_HEADERS,
                                    timeout=timeout)
+    return telegram_result(status, body)
+
+
+def telegram_result(status: int, body: bytes):
     payload = parse_json_body(body)
     if payload is None:
         raise TelegramError(f"Telegram gave an unreadable reply (HTTP {status})")
@@ -686,6 +691,59 @@ def telegram_call(token: str, method: str, params: Optional[Dict[str, str]] = No
         description = str(payload.get("description") or "unknown error")[:200]
         raise TelegramError(f"Telegram said: {description} (HTTP {status})")
     return payload.get("result")
+
+
+def set_bot_photo(config: dict, *, only_if_missing: bool = False) -> bool:
+    """Upload the bundled JPEG. Return False when keeping an existing photo."""
+    token = config.get("telegram_bot_token")
+    if not token:
+        raise AppError("Set up Telegram first, then run set-bot-photo again.")
+    remember_secret(token)
+    if only_if_missing:
+        bot = telegram_call(token, "getMe")
+        if not isinstance(bot, dict) or not isinstance(bot.get("id"), int):
+            raise TelegramError("Telegram did not return the bot's identity.")
+        photos = telegram_call(token, "getUserProfilePhotos", {
+            "user_id": str(bot["id"]), "limit": "1",
+        })
+        count = photos.get("total_count") if isinstance(photos, dict) else None
+        if not isinstance(count, int) or count < 0:
+            raise TelegramError("Telegram did not return the bot's photo count.")
+        if count:
+            return False
+    photo_path = Path(__file__).resolve().with_name(BOT_PHOTO_NAME)
+    try:
+        with photo_path.open("rb") as handle:
+            photo = handle.read(10 * 1024 * 1024 + 1)
+    except FileNotFoundError:
+        raise AppError(f"Keep {BOT_PHOTO_NAME} beside this script, or run set-bot-photo "
+                       "from the downloaded project folder.") from None
+    if not photo.startswith(b"\xff\xd8\xff") or len(photo) > 10 * 1024 * 1024:
+        raise AppError("The bundled bot image must be a JPEG smaller than 10 MB.")
+    boundary = "oura-photo-" + secrets.token_hex(24)
+    metadata = json.dumps({"type": "static", "photo": "attach://avatar"})
+    body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"photo\"\r\n\r\n"
+            f"{metadata}\r\n--{boundary}\r\n"
+            f"Content-Disposition: form-data; name=\"avatar\"; filename=\"{BOT_PHOTO_NAME}\"\r\n"
+            "Content-Type: image/jpeg\r\n\r\n").encode() + photo + (
+                f"\r\n--{boundary}--\r\n").encode()
+    status, _, response = http_request(
+        "POST", f"{TELEGRAM_API}/bot{token}/setMyProfilePhoto", data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}",
+                 "Accept": "application/json"})
+    if telegram_result(status, response) is not True:
+        raise TelegramError("Telegram did not confirm the bot photo update.")
+    return True
+
+
+def setup_bot_photo(config: dict) -> None:
+    """Cosmetic setup failure must not interrupt pairing or Oura setup."""
+    try:
+        if set_bot_photo(config, only_if_missing=True):
+            say("Added the ring profile picture to your Telegram bot.")
+    except (AppError, OSError) as exc:
+        say(f"Skipped the bot picture: {redact(exc)}")
+        say("Alerts can still work. To retry the picture, run set-bot-photo from this project.")
 
 
 def send_telegram(config: dict, text: str, state: Optional[dict] = None) -> bool:
@@ -1277,6 +1335,7 @@ def setup_telegram(config: dict) -> None:
     heading("Step 1 of 3: Telegram")
     if config.get("telegram_bot_token") and config.get("telegram_chat_id"):
         if ask_yes("Telegram is already set up. Keep it?"):
+            setup_bot_photo(config)
             return
     say("1. In Telegram, open a chat with @BotFather (the official bot with a blue check).")
     say("2. Send /newbot, pick any name, then a username ending in 'bot'.")
@@ -1302,6 +1361,7 @@ def setup_telegram(config: dict) -> None:
         name = chat.get("first_name") or chat.get("username") or "you"
         say(f"Paired with {name}.")
     config.update(telegram_bot_token=token, telegram_chat_id=chat_id)
+    setup_bot_photo(config)
     if not send_telegram(config, "\u2705 Oura stress alerts will be sent to this chat."):
         raise AppError("Could not send a message to that chat. Check the bot and try again.")
     if interactive() and not ask_yes("We sent you a Telegram message. Did it arrive?"):
@@ -1877,6 +1937,12 @@ def copy_script() -> Path:
         protect_windows_file(target)
     else:
         os.chmod(target, 0o700)
+    photo = source.with_name(BOT_PHOTO_NAME)
+    installed_photo = target.with_name(BOT_PHOTO_NAME)
+    if photo.is_file() and photo.resolve() != installed_photo.resolve():
+        shutil.copy2(photo, installed_photo)
+        if is_windows():
+            protect_windows_file(installed_photo)
     return target
 
 
@@ -2164,6 +2230,12 @@ def cmd_test(paths: Paths, args) -> int:
     return 0 if ok else 1
 
 
+def cmd_set_bot_photo(paths: Paths, args) -> int:
+    set_bot_photo(load_config(paths))
+    say("Telegram bot profile picture updated to the bundled ring image.")
+    return 0
+
+
 def cmd_check(paths: Paths, args) -> int:
     limit = CHECK_TIME_LIMIT_SECONDS + (INTERACTIVE_LOCK_WAIT_SECONDS if args.verify else 0)
     with time_limit(limit):
@@ -2185,7 +2257,7 @@ def cmd_uninstall(paths: Paths, args) -> int:
         with interactive_lock(paths):
             delete_owned_files(paths.root, OWNED_DATA_FILES, remove_lock=False)
         delete_owned_files(paths.root, (), remove_lock=True)
-        delete_owned_files(installed_script_path().parent, (SCRIPT_NAME,))
+        delete_owned_files(installed_script_path().parent, (SCRIPT_NAME, BOT_PHOTO_NAME))
         say(f"Deleted saved settings and keys in {paths.root}.")
     return 0
 
@@ -2333,6 +2405,7 @@ def build_parser() -> argparse.ArgumentParser:
     commands.add_parser("setup", help="guided first-time setup")
     commands.add_parser("connect-oura", help="log in to Oura again")
     commands.add_parser("test", help="send a test message and read today's stress")
+    commands.add_parser("set-bot-photo", help="set the bot's profile picture to the bundled ring image")
     check = commands.add_parser("check", help="run one check (the background job runs this)")
     check.add_argument("--scheduled", action="store_true", help=argparse.SUPPRESS)
     check.add_argument("--verify", action="store_true", help=argparse.SUPPRESS)
@@ -2354,6 +2427,7 @@ COMMANDS = {
     "setup": cmd_setup, "connect-oura": cmd_connect_oura, "test": cmd_test,
     "check": cmd_check, "install": cmd_install, "uninstall": cmd_uninstall,
     "settings": cmd_settings, "status": cmd_status,
+    "set-bot-photo": cmd_set_bot_photo,
 }
 
 
