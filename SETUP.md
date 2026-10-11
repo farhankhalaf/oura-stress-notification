@@ -199,7 +199,7 @@ Oura captures. The lock screen was cleaned, covered wallpaper was reconstructed,
 Home Screen calendar titles were made generic, and interactions and transitions
 were simulated. The calendar layout, event times and app notification counts remain.
 Notification text, graph points
-and stress readings are unchanged. A "Later" transition marks the later app capture.
+and stress readings are unchanged. The walkthrough compresses the time between captures.
 It is an edited walkthrough, not a continuous recording or an instant-alert claim.
 
 The October 10, 2026 live macOS run verified fresh-app setup, Telegram delivery,

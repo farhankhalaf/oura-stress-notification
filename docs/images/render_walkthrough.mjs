@@ -12,7 +12,9 @@ const png = name => 'data:image/png;base64,' + fs.readFileSync(path.join(source,
 const lock = png('lockscreen-empty'), notice = png('notification');
 const home = png('home'), today = png('oura-today'), stress = png('daytime-stress');
 const launch = png('oura-launch');
-const FPS = 15, SECONDS = 16, W = 620, H = 1348;
+const FPS = 15, CUT_START = 70, CUT_END = 81, EXTRA_HOLD = 30;
+const FRAMES = 240 - (CUT_END - CUT_START) + EXTRA_HOLD;
+const SECONDS = FRAMES / FPS, W = 620, H = 1348;
 const clamp = x => Math.max(0, Math.min(1, x));
 const progress = (t, a, b) => clamp((t - a) / (b - a));
 const ease = x => 1 - Math.pow(1 - clamp(x), 3);
@@ -36,11 +38,6 @@ function frame(t) {
   let art = '';
   if (t < 5.4) {
     art = lockScene(t);
-    // Real source captures were taken later than the original notification.
-    if (t >= 4.65) {
-      const p = Math.sin(Math.PI * progress(t, 4.65, 5.4));
-      art += `<rect width="620" height="1348" fill="#000" opacity="${.24 * p}"/><text x="310" y="1040" text-anchor="middle" font-family="Helvetica Neue,Arial,sans-serif" font-size="32" font-weight="500" fill="#fff" opacity="${p}">Later</text>`;
-    }
   } else if (t < 6.05) {
     const p = ease(progress(t, 5.4, 6.05));
     art = `<g transform="translate(310 674) scale(${1.045 - .045 * p}) translate(-310 -674)">${image(home)}</g>`;
@@ -100,8 +97,13 @@ function frame(t) {
 }
 
 let previous = '', buffer;
-for (let i = 0; i < FPS * SECONDS; i++) {
-  const svg = frame(i / FPS);
+for (let i = 0; i < FRAMES; i++) {
+  // Replace the interlude with two extra seconds of the clean notification.
+  // Preserve every original motion frame before and after that hold.
+  const motionFrame = i < CUT_START ? i
+    : i < CUT_START + EXTRA_HOLD ? CUT_START - 1
+    : i + (CUT_END - CUT_START) - EXTRA_HOLD;
+  const svg = frame(motionFrame / FPS);
   if (svg !== previous) buffer = new Resvg(svg, { font: { loadSystemFonts: true } }).render().asPng();
   previous = svg;
   fs.writeFileSync(path.join(out, `${String(i).padStart(4, '0')}.png`), buffer);
@@ -109,10 +111,12 @@ for (let i = 0; i < FPS * SECONDS; i++) {
 fs.writeFileSync(path.join(out, 'poster.png'), new Resvg(frame(3)).render().asPng());
 fs.writeFileSync(path.join(out, 'timeline.json'), JSON.stringify({fps:FPS,seconds:SECONDS,phases:[
   {at:0,label:'Clear lock screen'}, {at:1.5,label:'Real notification arrives'},
-  {at:4.65,label:'Later, time compressed'}, {at:5.4,label:'Unlock swipe'},
+  {at:5.4,label:'Unlock swipe'},
   {at:6.05,label:'Home Screen'}, {at:7,label:'Tap Oura'}, {at:7.45,label:'Oura opens'},
   {at:8.05,label:'Real Oura Today'}, {at:9.6,label:'Tap Stress'},
   {at:10.05,label:'Daytime Stress navigation'}, {at:10.8,label:'Real Daytime Stress'},
   {at:14.5,label:'Screen sleeps and returns to lock screen'}
-]},null,2));
-console.log(`Rendered ${FPS * SECONDS} full-phone frames at ${FPS} fps.`);
+].map(phase => ({...phase, at: phase.at >= 5.4
+  ? Math.round((phase.at + (EXTRA_HOLD - (CUT_END - CUT_START)) / FPS) * 100) / 100
+  : phase.at}))},null,2));
+console.log(`Rendered ${FRAMES} full-phone frames at ${FPS} fps.`);

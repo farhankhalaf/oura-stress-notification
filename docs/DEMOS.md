@@ -3,12 +3,12 @@
 The README demo stays inside one iPhone frame throughout:
 
 1. A clear lock screen.
-2. The real Telegram stress notification appears.
-3. A brief "Later" transition, then an unlock swipe.
+2. The real Telegram stress notification appears and stays visible for about five seconds.
+3. An unlock swipe directly after the notification.
 4. A simulated tap on the actual Oura Home Screen icon opens Oura Today.
 5. A simulated tap on Stress opens the real Daytime Stress screen.
 
-<img src="images/demo-walkthrough.gif" alt="Full iPhone walkthrough: notification arrives, unlock, tap Oura, then open Daytime Stress." width="420">
+<img src="images/demo-walkthrough.gif?v=0ea17395ecbf" alt="Full iPhone walkthrough: notification arrives, unlock, tap Oura, then open Daytime Stress." width="420">
 
 [Still image](images/demo-walkthrough.png)
 
@@ -22,8 +22,8 @@ with their original text, points, colors and readings. The navigation animation
 follows the native transition observed during capture.
 
 The lock-screen notification shows 45 minutes at 13:28. The later Home Screen and
-Oura captures show 14:12 and 14:15, when the total had reached one hour. "Later"
-marks this compressed passage of time. The data was not changed to make the
+Oura captures show 14:12 and 14:15, when the total had reached one hour. The walkthrough
+compresses this passage of time without an intertitle. The data was not changed to make the
 screens agree, and the demo does not imply an instant Oura reading or alert.
 
 The empty lock screen was made from the same screenshot by removing notification
@@ -69,7 +69,6 @@ gifsicle -O3 --lossy=20 /path/to/scratch/unoptimized.gif -o /path/to/repo/docs/i
 cp /path/to/scratch/frames/poster.png /path/to/repo/docs/images/demo-walkthrough.png
 ```
 
-The brief "Later" text uses Helvetica Neue, Arial or the system sans-serif fallback.
 All iPhone and app lettering is in the captured source pixels. Review the full loop
 on light and dark backgrounds, including the blank opening, notification arrival,
 each visible tap, both app transitions and the loop seam.

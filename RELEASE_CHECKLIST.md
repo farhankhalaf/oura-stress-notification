@@ -105,7 +105,7 @@ Private notification/widget areas were removed from the lock screen with generat
 wallpaper fill. The Home Screen calendar widget was kept with generic event titles;
 its times, layout, app notification badges and counts were retained. App icons and
 Oura UI/data were retained. Interactions
-and transitions are simulated. The brief "Later" transition marks the time between
+and transitions are simulated. The walkthrough compresses the time between
 the original notification capture and the later app reading. Graph overlays were
 restored after capture. This is an edited demonstration, not continuous footage.
 
@@ -116,11 +116,22 @@ not agree, identifying unlock/launch defects and a status-bar seam. Those defect
 were corrected. The final check scored 93/100 with no blocking findings and verified
 the full sequence, generic calendar titles, original event times and badge counts.
 
-The accepted GIF has SHA-256
+The Opus-accepted baseline GIF had SHA-256
 `16ce8be0273b15d67d20fd3becf619f599d4ce000c7059a16b73490cb6b93e36`.
-Its image and animation bytes were kept unchanged after acceptance. Only this
-acceptance record was added afterward. Minor status-bar and palette limitations
-were explicitly accepted as nonblocking at the README display size.
+Its image and animation bytes were kept unchanged for that publication. Minor
+status-bar and palette limitations were explicitly accepted as nonblocking at the
+README display size. A subsequent requested edit removes the "Later" intertitle,
+its dimming and its interlude, then holds the notification for two extra seconds
+before going directly into the unlock. Frame comparisons verify that the remaining
+motion is unchanged, and the encoded notification hold increases from 2.67 to
+4.67 seconds. The historical acceptance and hash above refer to the prior
+16-second version, which included the intertitle.
+
+Opus 5.5 separately accepted the timing follow-up: "AGREE. Both requested edits
+are correctly implemented, and I found no unintended changes." The targeted
+review used requested xhigh effort and reported standard speed, scoring 95/100.
+The revised 17.27-second GIF has SHA-256
+`0ea17395ecbf4a360de0391e1b2fcf4be3ec4d31b8451a306fdf344a88b56f5b`.
 
 ### 2026-10-11 bot picture
 

@@ -9,5 +9,5 @@ Set up https://github.com/fkb032/oura-stress-notification for me.
 ```
 
 <p align="center">
-  <img src="docs/images/demo-walkthrough.gif" alt="Edited iPhone walkthrough using real captures: a notification arrives on the lock screen, then the phone unlocks, Oura opens, and Daytime Stress appears. Taps and transitions are simulated." width="420">
+  <img src="docs/images/demo-walkthrough.gif?v=0ea17395ecbf" alt="Edited iPhone walkthrough using real captures: a notification arrives on the lock screen, then the phone unlocks, Oura opens, and Daytime Stress appears. Taps and transitions are simulated." width="420">
 </p>
