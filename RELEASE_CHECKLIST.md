@@ -25,10 +25,11 @@ not sufficient for this acceptance check.
 - Confirm automatic checks, a simple way to change quiet hours, and a clear way
   to stop the alerts. Record time and assistance rather than estimating them.
 
-**Not yet verified:** a fresh nontechnical user's complete agent-led setup and
-an actual iPhone push notification. The earlier live run verified Telegram Web
-receipt, not the phone notification. A real iPhone screenshot can replace the
-illustrative README image after that device check.
+**Phone delivery confirmed on 2026-10-11:** Farhan saw the dedicated bot's alert
+in the notification list on his physical iPhone's lock screen, outside Telegram.
+It was manually triggered with a real current Oura reading. A transient banner
+and a recorded demonstration have not been verified. A fresh nontechnical user's
+complete agent-led setup remains untested; this was an assisted existing account.
 
 ## Live run with a fresh Oura application
 
@@ -61,7 +62,22 @@ illustrative README image after that device check.
 |---|---|---|---|---|
 | 2026-10-10 | 0.1.0 | Farhan + Codex | macOS 26.5.2 (arm64) | Passed the tested macOS setup and recovery paths after the live-tested fixes; later review-driven fixes are unit-tested only: fresh app, Telegram pairing/delivery, automatic and pasted callbacks, real stress read, launchd startup, forced refresh and spent-token recovery. 80 tests pass on both local Python versions after follow-up review fixes. Exceptions: assisted existing account without timing; logout/login and revocation await approval; live Linux scheduling not tested. |
 | 2026-10-10 | 0.2.0 | Farhan + Codex | macOS, Linux and Windows CI | 112 tests pass on all seven CI targets, including native Windows permissions, locking, scheduler lifecycle and full scheduler installation with synthetic API responses. Live Windows account setup, standard-user installation, logout/login and phone delivery not performed. Opus 5.5 proposal review: 75 then 87 at the round limit; final code and both GIFs light-reviewed at xhigh: 85. Supported fixes were tested after review, without another model round. Demos use example data. |
-| 2026-10-11 | 0.2.1 | Farhan + Codex | macOS | Ring profile picture uploaded to the dedicated bot through Telegram's API, read back and visually verified. 123 tests pass on both local Python versions, with 10 Windows-only skips. New setup preserves existing photos and treats an avatar failure as nonfatal. Real-data alert sent, but an iOS notification banner and replacement recording remain unverified. Earlier live-platform and fresh-user deviations remain. |
+| 2026-10-11 | 0.2.1 | Farhan + Codex | macOS and physical iPhone; Linux/Windows CI | Ring profile picture uploaded, read back and visually verified. The 123-test suite passed both local Python versions and all seven CI targets on 84dc019, with expected platform-specific skips. Farhan confirmed a manually triggered real-data alert in the notification list on the physical iPhone lock screen, outside Telegram. Transient banner and replacement recording remain unverified. Assisted existing account, no fresh-user timing, no natural stress-increase event observed during this check. Earlier live-platform deviations remain. |
+
+### 2026-10-11 physical iPhone delivery
+
+A manually triggered alert used the current Oura API reading and the program's
+normal stress-alert wording. Telegram accepted the send, and Farhan confirmed it
+appeared in the notification list on the physical iPhone lock screen, outside
+Telegram. This passes lock-screen delivery; it does not establish a transient
+banner or an automatic alert triggered by a newly observed increase.
+
+The iPhone's Telegram settings already allowed notifications, Lock Screen,
+Notification Center and Banners. No notification preferences were changed.
+iPhone Mirroring did not display the notification in the captured frames, so those
+frames are not evidence of phone delivery. Real Oura graph screenshots were saved
+privately for a future demo, with display overlays restored afterward. The README
+still uses the existing simulation pending an actual notification capture.
 
 ### 2026-10-11 bot picture
 
