@@ -270,6 +270,10 @@ def private_windows_acl(sddl: str, sid: str) -> bool:
         if len(fields) != 6 or fields[0] not in ("A", "D"):
             return False  # Do not guess the meaning of conditional/object ACEs.
         kind, flags, rights, _, _, principal = fields
+        # SDDL abbreviates the built-in local Administrator/Guest account SIDs.
+        # Accept the alias only when it identifies this exact current user.
+        if (principal == "LA" and sid.endswith("-500")) or (principal == "LG" and sid.endswith("-501")):
+            principal = sid
         if kind == "D":
             continue
         if principal not in allowed:
@@ -1697,6 +1701,14 @@ def windows_task_fields(xml: str) -> dict:
               "Settings/StartWhenAvailable", "Settings/WakeToRun", "Settings/RunOnlyIfIdle")
     result = {name: root.findtext("/".join("t:" + part for part in name.split("/")),
                                   namespaces=ns) for name in fields}
+    defaults = {"Principals/Principal/RunLevel": "LeastPrivilege",
+                "Settings/Enabled": "true", "Settings/MultipleInstancesPolicy": "IgnoreNew",
+                "Settings/ExecutionTimeLimit": "PT72H", "Settings/DisallowStartIfOnBatteries": "true",
+                "Settings/StopIfGoingOnBatteries": "true", "Settings/StartWhenAvailable": "false",
+                "Settings/WakeToRun": "false", "Settings/RunOnlyIfIdle": "false"}
+    for name, default in defaults.items():
+        if result[name] is None:
+            result[name] = default
     result["action_count"] = len(root.findall("t:Actions/*", ns))
     result["trigger_count"] = len(root.findall("t:Triggers/*", ns))
     return result

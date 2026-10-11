@@ -29,6 +29,17 @@ SID = "S-1-5-21-111-222-333-1001"
 
 
 class WindowsDesignTests(unittest.TestCase):
+    def test_local_account_alias_is_resolved_only_for_current_user(self):
+        acl = "D:P(A;OICI;FA;;;LA)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
+        self.assertTrue(ost.private_windows_acl(acl, "S-1-5-21-111-222-333-500"))
+        self.assertFalse(ost.private_windows_acl(acl, SID))
+
+    def test_scheduler_omitted_defaults_match_explicit_defaults(self):
+        xml = ost.windows_task_xml("pythonw.exe", Path("s.py"), Path("data"), 5, SID, "id")
+        normalized = xml.replace("<RunLevel>LeastPrivilege</RunLevel>", "").replace(
+            "<WakeToRun>false</WakeToRun>", "").replace("<Enabled>true</Enabled>", "")
+        self.assertEqual(ost.windows_task_fields(xml), ost.windows_task_fields(normalized))
+
     def test_private_acl_allows_admins_but_rejects_broad_access(self):
         own = f"(A;OICI;FA;;;{SID})"
         self.assertTrue(ost.private_windows_acl("D:P" + own + "(A;OICI;FA;;;BA)", SID))
@@ -203,7 +214,13 @@ class NativeWindowsTests(unittest.TestCase):
                               creationflags=subprocess.CREATE_NO_WINDOW, timeout=60)
 
     def test_private_creation_and_unrelated_directory_are_safe(self):
-        ost.write_json_private(self.paths.config, {"value": "fake"})
+        try:
+            ost.write_json_private(self.paths.config, {"value": "fake"})
+        except ost.AppError:
+            # Safe diagnostic of this disposable CI folder, never saved keys.
+            sid = ost.windows_user_sid()
+            self.fail("Private-folder validation failed; account RID=" + sid.rsplit("-", 1)[-1]
+                      + "; ACL=" + ost.windows_acl(self.root).replace(sid, "CURRENT_USER"))
         sid = ost.windows_user_sid()
         self.assertTrue(sid.startswith("S-1-"))
         self.assertTrue(ost.private_windows_acl(ost.windows_acl(self.root), sid))
