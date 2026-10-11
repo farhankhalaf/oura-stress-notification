@@ -181,7 +181,7 @@ python3 oura_stress_telegram.py settings --min-increase 15
 
 - Your Telegram bot token, Oura app keys and Oura login are saved in `~/.config/oura-stress-telegram/` on Mac/Linux or `%LOCALAPPDATA%\oura-stress-telegram` on Windows. Unix files use private permissions; Windows access is restricted to your user, SYSTEM and local administrators.
 - The program only asks Oura for **daily** data and only reads the daily stress summary.
-- Telegram messages pass through Telegram's servers like any bot message. Alerts contain only minutes of stress. Problem notices also include the error and the command to run, which shows folder paths on your computer.
+- Telegram messages pass through Telegram's servers like any bot message. Alerts report recorded high stress; later alerts also include stress minutes. Problem notices also include the error and the command to run, which shows folder paths on your computer.
 - To remove everything: run `uninstall --delete-data`, delete your application at [developer.ouraring.com/applications](https://developer.ouraring.com/applications), and delete the bot by sending `/deletebot` to @BotFather.
 
 ## Project status
@@ -198,8 +198,9 @@ shows a full phone walkthrough using that notification and real Home Screen and
 Oura captures. The lock screen was cleaned, covered wallpaper was reconstructed,
 Home Screen calendar titles were made generic, and interactions and transitions
 were simulated. The calendar layout, event times and app notification counts remain.
-Notification text, graph points
-and stress readings are unchanged. The walkthrough compresses the time between captures.
+The notification headline was shortened to "Oura recorded high stress" to match
+the current first-alert wording. Graph points and Oura stress readings are unchanged.
+The walkthrough compresses the time between captures.
 It is an edited walkthrough, not a continuous recording or an instant-alert claim.
 
 The October 10, 2026 live macOS run verified fresh-app setup, Telegram delivery,

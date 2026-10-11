@@ -8,7 +8,7 @@ The README demo stays inside one iPhone frame throughout:
 4. A simulated tap on the actual Oura Home Screen icon opens Oura Today.
 5. A simulated tap on Stress opens the real Daytime Stress screen.
 
-<img src="images/demo-walkthrough.gif?v=0ea17395ecbf" alt="Full iPhone walkthrough: notification arrives, unlock, tap Oura, then open Daytime Stress." width="420">
+<img src="images/demo-walkthrough.gif?v=76cffd8546ba" alt="Full iPhone walkthrough: notification arrives, unlock, tap Oura, then open Daytime Stress." width="420">
 
 [Still image](images/demo-walkthrough.png)
 
@@ -21,10 +21,14 @@ Mirroring on the Mac on October 11, 2026. The Oura app screens and graph are rea
 with their original text, points, colors and readings. The navigation animation
 follows the native transition observed during capture.
 
-The lock-screen notification shows 45 minutes at 13:28. The later Home Screen and
-Oura captures show 14:12 and 14:15, when the total had reached one hour. The walkthrough
-compresses this passage of time without an intertitle. The data was not changed to make the
-screens agree, and the demo does not imply an instant Oura reading or alert.
+The lock-screen notification was captured at 13:28. Its headline was edited to
+"Oura recorded high stress", removing the daily minute total to match the current
+first-alert wording. The later Home Screen and Oura captures show 14:12 and 14:15,
+when the total had reached one hour. The walkthrough compresses this passage of
+time without an intertitle. Oura readings were not changed to make the screens
+agree, and the demo does not imply an instant Oura reading or alert.
+The original preview spacing was retained, so the gap below the headline is wider
+and less body text is visible than a newly rendered alert may show.
 
 The empty lock screen was made from the same screenshot by removing notification
 cards and widgets and filling the covered wallpaper with image-generation cleanup.
@@ -46,9 +50,10 @@ GIF encoding uses a palette per frame and light lossy compression to reduce the
 download size. These presentation edits do not change stress data.
 
 The Telegram notification opens Telegram when tapped. The demo correctly unlocks
-and taps the separate Oura icon to open Oura. The alert was manually triggered
-using the tool's normal formatter and a real API reading; delivery was confirmed
-on the physical iPhone lock screen. Notification appearance varies with iOS,
+and taps the separate Oura icon to open Oura. The original alert was manually
+triggered using the tool's then-current formatter and a real API reading; delivery
+was confirmed on the physical iPhone lock screen. The shortened headline was not
+sent as a new live alert. Notification appearance varies with iOS,
 Telegram and the person's settings.
 
 ## Rebuild
@@ -69,7 +74,8 @@ gifsicle -O3 --lossy=20 /path/to/scratch/unoptimized.gif -o /path/to/repo/docs/i
 cp /path/to/scratch/frames/poster.png /path/to/repo/docs/images/demo-walkthrough.png
 ```
 
-All iPhone and app lettering is in the captured source pixels. Review the full loop
+All iPhone and app lettering is in the source images, including the edited
+notification headline and generic calendar titles. Review the full loop
 on light and dark backgrounds, including the blank opening, notification arrival,
 each visible tap, both app transitions and the loop seam.
 

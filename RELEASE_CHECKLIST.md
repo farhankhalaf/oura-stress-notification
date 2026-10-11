@@ -133,6 +133,26 @@ review used requested xhigh effort and reported standard speed, scoring 95/100.
 The revised 17.27-second GIF has SHA-256
 `0ea17395ecbf4a360de0391e1b2fcf4be3ec4d31b8451a306fdf344a88b56f5b`.
 
+### 2026-10-11 notification headline
+
+The first stress alert now begins "Oura recorded high stress", without the daily
+minute total. The alert rule, saved baseline, later-increase messages and remaining
+first-alert text are unchanged. The README GIF and poster use the same shortened
+headline, edited in the original notification crop. Only the removed punctuation
+and duration areas were changed; the surrounding captured pixels are preserved.
+The complete animation timeline, including its extended notification hold, is
+unchanged. The 123-test suite passes on both local Python versions with 10 expected
+platform skips each. This wording change was not sent as a new live phone alert.
+
+Opus 5.5 accepted the exact GIF and formatter change in one targeted light review
+at requested xhigh effort and reported standard speed: "AGREE. The change does
+what was asked." It scored 88/100 with no blocking findings. Follow-up documentation
+clarifies retained preview spacing, the original formatter used for live delivery,
+and first-alert versus later-alert contents. Those wording fixes were checked by
+the host after review. Earlier artwork remains labeled historical. The accepted
+GIF has SHA-256
+`76cffd8546baf6ab5fb3f7d7c321b102c1ab3cc15aac5f0d01e2bb634a9e826e`.
+
 ### 2026-10-11 bot picture
 
 The repository includes a generated, unbranded ring JPEG. Guided setup sets it only
