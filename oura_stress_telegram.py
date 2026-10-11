@@ -595,7 +595,7 @@ def default_root() -> Path:
 
 
 def command_for(action: str, paths: Optional[Paths] = None, *, prefer_installed: bool = True) -> str:
-    """A command that works from any folder and any shell, preferring the installed copy."""
+    """An absolute command for POSIX shells or Windows PowerShell."""
     script = installed_script_path()
     if not prefer_installed or not script.exists():
         script = Path(__file__).resolve()
@@ -1760,8 +1760,23 @@ def install_windows_schedule(paths: Paths, script: Path, interval: int, verify: 
         verify_background_run(paths, pythonw, script)
     since = time.time()
     registered = windows_task("register", xml)
-    if not registered.get("exists") or windows_task_fields(registered.get("xml")) != windows_task_fields(xml):
-        raise AppError("Task Scheduler did not save the expected settings. Run install again.")
+    try:
+        if not registered.get("exists"):
+            raise AppError("the registered task is missing")
+        actual, expected = windows_task_fields(registered.get("xml")), windows_task_fields(xml)
+        differences = [name for name in expected if actual.get(name) != expected[name]]
+        if differences:
+            raise AppError("different task fields: " + ", ".join(differences))
+    except AppError as exc:
+        try:
+            if windows_task("uninstall").get("exists"):
+                raise AppError("the task is still present")
+            cleanup = "The unverified task was removed."
+        except (AppError, OSError, subprocess.SubprocessError) as cleanup_error:
+            cleanup = ("The task may still be installed: " + redact(cleanup_error)
+                       + ". To stop it, run: " + command_for("uninstall", paths))
+        raise AppError(f"Windows task verification failed ({exc}). {cleanup} "
+                       "Resolve the reported difference, then run install again.") from None
     if verify:
         windows_task("run")
         report_scheduled_run(wait_for_scheduled_run(paths, since, run_id=run_id))
@@ -2061,6 +2076,14 @@ def schedule_description() -> str:
     return "not supported on this system"
 
 
+def safe_schedule_description() -> str:
+    """A failed scheduler query must not hide connection or health diagnostics."""
+    try:
+        return schedule_description()
+    except (AppError, OSError, subprocess.SubprocessError) as exc:
+        return "could not be checked (" + redact(exc) + ")"
+
+
 # --------------------------------------------------------------------------
 # Commands
 # --------------------------------------------------------------------------
@@ -2122,7 +2145,10 @@ def cmd_connect_oura(paths: Paths, args) -> int:
         raise
     except (AppError, OSError) as exc:
         raise AppError(f"Your new Oura login was saved, but the test read failed: {exc}") from None
-    if schedule_description() == "not installed":
+    description = safe_schedule_description()
+    if description.startswith("could not be checked"):
+        say("Oura is connected. Background checks " + description + ".")
+    elif description == "not installed":
         say("Automatic checks are not installed. To enable them, run:")
         say(command_for("install", paths, prefer_installed=False))
     return 0
@@ -2187,6 +2213,7 @@ def cmd_settings(paths: Paths, args) -> int:
     config = load_config(paths)
     settings = dict(config.get("settings") or {})
     changed = False
+    schedule_problem = None
     if args.quiet is not None:
         if args.quiet.lower() in ("off", "none"):
             settings.update(quiet_start="00:00", quiet_end="00:00")
@@ -2211,13 +2238,26 @@ def cmd_settings(paths: Paths, args) -> int:
     if changed:
         config["settings"] = settings
         write_json_private(paths.config, config)
-        if args.interval is not None and schedule_description().startswith("installed"):
-            install_schedule(paths, config, verify=False)
+        if args.interval is not None:
+            description = safe_schedule_description()
+            if description.startswith("installed"):
+                try:
+                    install_schedule(paths, config, verify=False)
+                except (AppError, OSError, subprocess.SubprocessError) as exc:
+                    raise AppError("Settings were saved, but automatic check timing could not "
+                                   f"be updated: {redact(exc)}") from None
+            elif description.startswith("could not be checked"):
+                schedule_problem = description
     current = settings_of(config)
     quiet = ("off" if current["quiet_start"] == current["quiet_end"]
              else f"{current['quiet_start']} to {current['quiet_end']}")
     say(f"Quiet hours (no checks): {quiet}")
-    say(f"Check every: {current['interval_minutes']} minutes")
+    if schedule_problem:
+        say(f"Requested check interval: {current['interval_minutes']} minutes (not yet verified)")
+        say("Settings saved. Background checks " + schedule_problem + ".")
+        say("After fixing that issue, update automatic checks with: " + command_for("install", paths))
+    else:
+        say(f"Check every: {current['interval_minutes']} minutes")
     increase = int(current["min_increase_minutes"] or 0)
     say("Alert on: " + ("any new high stress" if increase == 0
                         else f"at least {increase} new minutes of high stress"))
@@ -2247,7 +2287,7 @@ def cmd_status(paths: Paths, args) -> int:
     quiet = ("off" if current["quiet_start"] == current["quiet_end"]
              else f"{current['quiet_start']} to {current['quiet_end']}")
     say(f"Quiet hours: {quiet}")
-    say(f"Background checks: {schedule_description()} (every {current['interval_minutes']} min)")
+    say(f"Background checks: {safe_schedule_description()} (every {current['interval_minutes']} min)")
     say(f"Last check: {state.get('last_check') or 'never'}")
     last_run = read_last_run(paths)
     if last_run.get("invoked_at"):

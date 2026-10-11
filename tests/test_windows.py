@@ -19,9 +19,11 @@ import unittest
 import urllib.request
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 import oura_stress_telegram as ost
+from test_oura_stress_telegram import Base, stress_body
 
 ROOT = Path(__file__).resolve().parent.parent
 WINDOWS = os.name == "nt"
@@ -29,6 +31,40 @@ SID = "S-1-5-21-111-222-333-1001"
 
 
 class WindowsDesignTests(unittest.TestCase):
+    def test_failed_task_readback_removes_task_and_names_difference(self):
+        registered = ost.windows_task_xml("pythonw.exe", Path("s.py"), Path("data"), 5, SID, "id")
+        registered = registered.replace("LeastPrivilege", "HighestAvailable")
+        calls = []
+
+        def task(operation, *args):
+            calls.append(operation)
+            return {"exists": True, "xml": registered} if operation == "register" else {"exists": False}
+
+        with mock.patch.object(ost, "windows_pythonw", return_value="pythonw.exe"), \
+                mock.patch.object(ost, "windows_user_sid", return_value=SID), \
+                mock.patch.object(ost, "windows_task", side_effect=task):
+            with self.assertRaises(ost.AppError) as caught:
+                ost.install_windows_schedule(ost.Paths(Path("data")), Path("s.py"), 5, False)
+        self.assertEqual(calls, ["register", "uninstall"])
+        self.assertIn("Principals/Principal/RunLevel", str(caught.exception))
+        self.assertIn("removed", str(caught.exception))
+
+    def test_malformed_task_readback_also_cleans_up(self):
+        with mock.patch.object(ost, "windows_pythonw", return_value="pythonw.exe"), \
+                mock.patch.object(ost, "windows_user_sid", return_value=SID), \
+                mock.patch.object(ost, "windows_task", side_effect=[{"exists": True, "xml": "invalid"},
+                                                                   {"exists": False}]) as task:
+            with self.assertRaisesRegex(ost.AppError, "removed"):
+                ost.install_windows_schedule(ost.Paths(Path("data")), Path("s.py"), 5, False)
+        self.assertEqual(task.call_args_list[-1], mock.call("uninstall"))
+
+    def test_task_cleanup_failure_is_not_reported_as_removal(self):
+        with mock.patch.object(ost, "windows_pythonw", return_value="pythonw.exe"), \
+                mock.patch.object(ost, "windows_user_sid", return_value=SID), \
+                mock.patch.object(ost, "windows_task", side_effect=[{"exists": False}, ost.AppError("denied")]):
+            with self.assertRaisesRegex(ost.AppError, "may still be installed"):
+                ost.install_windows_schedule(ost.Paths(Path("data")), Path("s.py"), 5, False)
+
     def test_local_account_alias_is_resolved_only_for_current_user(self):
         acl = "D:P(A;OICI;FA;;;LA)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
         self.assertTrue(ost.private_windows_acl(acl, "S-1-5-21-111-222-333-500"))
@@ -197,6 +233,35 @@ class WindowsDesignTests(unittest.TestCase):
             self.assertEqual(list(root.iterdir()), [])
 
 
+class SchedulerDiagnosticTests(Base):
+    def test_status_keeps_health_details_when_scheduler_query_fails(self):
+        self.set_state(needs_reconnect=True, last_error="expired login", delivery_error="test delivery error",
+                       last_check="2026-10-10T12:00:00+00:00")
+        with mock.patch.object(ost, "schedule_description", side_effect=ost.AppError("query unavailable")):
+            self.assertEqual(ost.cmd_status(self.paths, None), 0)
+        output = self.stdout.getvalue()
+        for expected in ("could not be checked", "Last check:", "ACTION NEEDED:", "expired login", "test delivery error"):
+            self.assertIn(expected, output)
+
+    def test_reconnect_success_is_not_turned_into_a_scheduler_failure(self):
+        self.http.stress = [(200, stress_body())]
+        with mock.patch.object(ost, "connect_oura"), \
+                mock.patch.object(ost, "schedule_description", side_effect=ost.AppError("query unavailable")):
+            self.assertEqual(ost.cmd_connect_oura(self.paths, None), 0)
+        self.assertIn("Oura is connected", self.stdout.getvalue())
+        self.assertIn("could not be checked", self.stdout.getvalue())
+
+    def test_interval_saved_with_explicit_unverified_schedule(self):
+        args = SimpleNamespace(quiet=None, interval=10, min_increase=None)
+        with mock.patch.object(ost, "schedule_description", side_effect=ost.AppError("query unavailable")), \
+                mock.patch.object(ost, "install_schedule") as install:
+            self.assertEqual(ost.cmd_settings(self.paths, args), 0)
+            install.assert_not_called()
+        self.assertEqual(ost.load_config(self.paths)["settings"]["interval_minutes"], 10)
+        self.assertIn("not yet verified", self.stdout.getvalue())
+        self.assertIn(ost.command_for("install", self.paths), self.stdout.getvalue())
+
+
 @unittest.skipUnless(WINDOWS, "native Windows integration")
 class NativeWindowsTests(unittest.TestCase):
     def setUp(self):
@@ -327,6 +392,51 @@ class NativeWindowsTests(unittest.TestCase):
                              "error: setup is not finished")
         finally:
             ost.windows_task("uninstall", name=name)
+
+    def test_complete_windows_install_with_isolated_api_responses(self):
+        # Install the actual program with only HTTP replaced. The fixture refuses
+        # any implicit data path, so it cannot read a real user's saved settings.
+        import importlib.util
+        source_dir = Path(self.tmp.name) / "source"
+        source_dir.mkdir()
+        source_file = source_dir / ost.SCRIPT_NAME
+        fixture = '''
+def _fixture_http(method, url, **kwargs):
+    if method == "GET" and url.startswith(OURA_STRESS_URL):
+        return 200, {}, b'{"data": [], "next_token": null}'
+    raise AssertionError("No live API calls are allowed in this fixture")
+http_request = _fixture_http
+
+def default_paths():
+    raise AssertionError("The test requires an explicit data folder")
+
+'''
+        source = (ROOT / ost.SCRIPT_NAME).read_text(encoding="utf-8")
+        source_file.write_text(source.replace('if __name__ == "__main__":',
+                                               fixture + 'if __name__ == "__main__":'), encoding="utf-8")
+        spec = importlib.util.spec_from_file_location("oura_windows_install_fixture", source_file)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        name = "oura-stress-telegram-test-" + uuid.uuid4().hex
+        config = {"telegram_bot_token": "fake-bot", "telegram_chat_id": "123", "oura_client_id": "fake-id",
+                  "oura_client_secret": "fake-secret", "settings": {"quiet_start": "00:00", "quiet_end": "00:00"}}
+        module.write_json_private(self.paths.config, config)
+        module.write_json_private(self.paths.tokens, {"access_token": "fake-access", "refresh_token": "fake-refresh",
+                                                      "expires_at": int(time.time()) + 86400})
+        with mock.patch.dict(os.environ, {"LOCALAPPDATA": str(Path(self.tmp.name) / "local")}), \
+                mock.patch.object(module, "windows_task_name", return_value=name), \
+                contextlib.redirect_stdout(io.StringIO()):
+            try:
+                module.install_schedule(self.paths, config, verify=True)
+                self.assertTrue(module.installed_script_path().is_file())
+                self.assertEqual(module.read_last_run(self.paths)["outcome"], "ok")
+                task = module.windows_task("query")
+                self.assertTrue(task["enabled"])
+                self.assertIn(module.read_last_run(self.paths)["run_id"], task["xml"])
+                self.assertNotIn("fake-secret", task["xml"])
+            finally:
+                module.windows_task("uninstall")
+            self.assertFalse(module.windows_task("query")["exists"])
 
     def test_uninstall_data_closes_lock_before_removing_it(self):
         ost.write_json_private(self.paths.config, {"value": "fake"})
