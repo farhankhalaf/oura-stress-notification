@@ -1,48 +1,61 @@
 # Oura stress alerts on Telegram
 
-Get a gentle Telegram nudge when your Oura ring notices you have been stressed.
+**A gentle nudge on your iPhone when Oura records more high stress.**
 
-> 🔴 **Oura recorded high stress:** 15 min today.
->
-> Your body has been showing physiological stress. If it fits, take a short break, a few slow breaths, or a walk.
+Free and open source. Your computer checks Oura and sends the alert through your own Telegram bot. No coding required.
 
-Later in the day, if more stress shows up:
+<p align="center">
+  <img src="docs/images/iphone-notification.svg" alt="Illustration of an iPhone showing a Telegram notification from Oura Stress Alerts: Oura recorded high stress, 15 minutes today, followed by a gentle suggestion to take a break." width="360">
+  <br>
+  <sub>Illustrative iPhone preview with example data. Appearance depends on your iOS, Telegram and notification settings.</sub>
+</p>
 
-> 🔴 **More high stress recorded:** +15 min (30 min today).
+## Start here: ask your agent to set it up
 
-## How it works
+Copy this into an AI agent that can use the terminal on your Mac or Linux computer:
 
-- A small program on your computer asks Oura every 5 minutes how much time you have spent in **high stress** today.
-- When that number goes up, it sends you a Telegram message.
-- Your keys stay on your computer. Nothing goes anywhere except between your computer, Oura and Telegram.
+```text
+Set up https://github.com/fkb032/oura-stress-telegram for me.
+I'm not a developer. Follow the repo's AGENTS.md, do the technical steps,
+and walk me through anything I need to do, one step at a time.
+Finish when I receive a test notification on my phone and automatic checks work.
+```
+
+**Your agent handles the download, checks Python, runs setup and verifies the background job.** You do not need to understand Git, Python or the code. A chat assistant without access to your computer cannot perform the installation.
+
+You handle the account steps, with your agent beside you:
+
+1. **Make a Telegram bot.** A bot is just the sender of your alerts. Telegram's official [@BotFather](https://t.me/BotFather) walks you through naming it.
+2. **Connect Oura.** Fill in Oura's application form with the values your agent provides. This is a permission form; you are not building an app.
+3. **Approve access and paste your keys into the setup window.** Your agent will show you where. Keep keys out of the AI chat.
+4. **See the test notification on your iPhone.** Setup is only finished once it arrives and automatic checks are working.
 
 ## What you need
 
-- **An Oura Ring Gen3 or Ring 4** with an **active Oura Membership**.
-- **Daytime Stress showing in your Oura app.** Oura needs about 5 days of wear before it appears.
-- **Telegram** on your phone.
-- **A Mac or Linux computer** that is on during your day. Checks run while you are logged in and the computer is awake. On Linux, systemd is recommended; cron works but is experimental.
-- **10 to 20 minutes.**
+- An **Oura Ring Gen3 or Ring 4**, an active **Oura Membership**, and **Daytime Stress already showing** in the Oura app.
+- **Telegram on your iPhone**, with notifications allowed. Other phones with Telegram can receive these alerts too.
+- A **Mac or Linux computer** that stays on during your day. Checks run while the computer is awake; the default setup also requires you to be logged in. Mac has been tested live. Linux scheduling still needs live testing; cron is experimental.
+- An AI agent with access to your computer, or the manual instructions below.
 
-Windows is not supported yet.
+There is no separate iPhone app to install. The program runs on your computer; the notification arrives through Telegram. Windows is not supported yet.
 
-## The easy way: ask your AI assistant
+## Make sure it reaches your iPhone
 
-If you use an AI coding assistant on your computer (Claude Code, Codex, Cursor or similar), paste this to it:
+Open **Settings > Notifications > Telegram**, turn on **Allow Notifications**, and select **Lock Screen** or **Banners**. Your **Show Previews** setting controls when the message text is visible. Focus or Do Not Disturb may delay notifications. [Apple's notification settings guide](https://support.apple.com/guide/iphone/change-notification-settings-iph7c3d96bab/ios).
 
-```text
-Set up https://github.com/fkb032/oura-stress-telegram for me so I get Telegram
-alerts when my Oura ring records stress. Follow the AGENTS.md file in that repo.
-```
+Open your new bot in Telegram and press **Start** during pairing. Leave the chat, then have your agent send the test and check your phone. A message visible only in Telegram on the computer is not confirmation that phone notifications work.
 
-It will guide you through everything. A few steps only you can do, and it will tell you when:
+## After setup
 
-1. Create a Telegram bot (a 1 minute chat with Telegram's @BotFather).
-2. Register a free "application" on Oura's website. This is how Oura lets you connect your own data now.
-3. Log in to Oura, turn on **Sleep, readiness, and activity**, then press **Allow**.
-4. Type your keys into the setup program in your own terminal window. Do not paste them into the AI chat.
+- The program checks every **5 minutes** and sends a message when today's high-stress total increases.
+- Quiet hours default to **midnight to 8 AM**. Ask your agent to change them or make alerts less frequent.
+- Keep the Oura app syncing your ring. Alerts describe **what Oura recorded**, with a delay; they are not an instant stress alarm.
+- Ask your agent **"Stop the Oura alerts"** to remove the background job. Your saved connection can be kept for later.
 
-## Doing it yourself
+<details>
+<summary><strong>Prefer to set it up yourself? Open the manual steps.</strong></summary>
+
+### Manual setup
 
 **1. Get the code.** Click the green **Code** button on this page, then **Download ZIP**. Unzip it, rename the folder to `oura-stress-telegram`, and move it into your home folder (on a Mac, the folder with your name and the house icon). Or, if you know git:
 
@@ -83,6 +96,9 @@ Setup walks you through three parts:
 - **Background checks.** Answer **Y** when setup asks to check automatically. It runs one real check, installs the background job, and waits until the job has run once by itself.
 
 That is it. Keep the Oura app on your phone so your ring keeps syncing.
+
+
+</details>
 
 ## Everyday commands
 

@@ -1,60 +1,122 @@
-# Instructions for AI agents
+# Set up Oura stress alerts for this person
 
-You are helping a person, often not technical, set up Oura stress alerts on Telegram. You are done when `status` shows everything working and they have received the test message in Telegram.
+Assume the person is not a developer. Their request may be only "Set this up" plus the repository URL. Do the technical work yourself and guide them through account steps one at a time. Do not stop at a plan or a list of commands.
 
-## Rules
+**Done means both:** the person confirms a test notification appeared on their phone, and `status` shows automatic checks installed with a recent successful background run. A successful send response or a message in Telegram Web alone does not verify phone delivery.
 
-- **Never ask the person to paste secrets into the chat.** That includes the Telegram bot token and the Oura Client Secret. They type them into the `setup` prompt in their own terminal. If your tool can run an interactive command in their terminal (for example the `!` prefix in Claude Code), you may suggest it.
-- **Never print, copy, commit or upload** `~/.config/oura-stress-telegram/` or anything in it.
-- **Do not log in to their Oura or Telegram accounts for them** with browser automation unless they explicitly ask you to.
-- **Do not edit `oura_stress_telegram.py` to get past a problem.** Report the problem and point them to the README's troubleshooting table or an issue.
-- Keep explanations short and concrete. Tell them what they will see and what to click.
+## How to help
 
-## Steps
+- Explain the next action in plain English: where to click, what to paste, and what they should see. Avoid unexplained terms such as OAuth, PKCE, launchd, cron and environment variables.
+- Handle downloading, choosing Python, running commands and checking results. Ask the person only for steps that need their account access, consent or private input.
+- Never ask them to paste a bot token or Client Secret into the AI chat. Use the setup program's hidden input in a terminal they control. Existing privately supplied environment variables are also supported; never print their values.
+- Never print, copy, commit or upload `~/.config/oura-stress-telegram/` or its contents.
+- Have the person complete Oura or Telegram sign-in if needed. Do not sign in for them unless they explicitly ask you to.
+- For ordinary installation, do not edit `oura_stress_telegram.py` to work around a failure. Use the troubleshooting guidance, report a clear blocker, or help prepare an issue without secrets. A maintainer's explicit development request is separate from installation.
+- Use a new Telegram bot dedicated to this tool. Do not reuse a bot another program already polls.
 
-1. **Check the computer.** macOS or Linux only. On Windows, say it is not supported yet (WSL may work but is untested) and stop.
-2. **Check Python:** `python3 --version` must be 3.9 or newer.
-   - macOS: if it prompts to install command line developer tools, have them click Install and wait. Alternatively install from python.org and run its "Install Certificates.command".
-   - Linux: install `python3` with the system package manager.
-3. **Get the code** into a permanent folder, for example `git clone https://github.com/fkb032/oura-stress-telegram.git ~/oura-stress-telegram`. Avoid temporary folders.
-4. **Explain what is coming**, in plain words:
-   - They will create a Telegram bot with @BotFather and send it a pairing code.
-   - They will register a free application at https://developer.ouraring.com/applications with the Redirect URI exactly `http://localhost:8765/callback`, select **Daily** under Scopes, then copy its Client ID and Client Secret.
-   - They will log in to Oura, turn on **Sleep, readiness, and activity**, then press **Allow**.
-5. **Have them run setup in their own terminal:**
+## 1. Check the computer and get the code
 
-   ```bash
-   cd ~/oura-stress-telegram && python3 oura_stress_telegram.py setup
-   ```
+Use a Mac or Linux computer. On Windows, explain that it is not supported yet and stop before installing anything.
 
-   Stay with them through each prompt. Useful details:
-   - Oura will ask for website, privacy policy and terms links. The project URL `https://github.com/fkb032/oura-stress-telegram` is fine for a personal app.
-   - If the localhost return page fails after Allow, they paste the full address bar URL into the setup window.
-   - Answer **Y** to background checks. Setup then runs one real background check.
-6. **Verify.** You may run these yourself; they print no secrets:
+Find Python 3.9 or newer by running `python3 --version`. Use its actual path consistently for setup and later commands. No pip packages, Node, Docker or other project dependencies are needed.
 
-   ```bash
-   python3 oura_stress_telegram.py status
-   python3 oura_stress_telegram.py test
-   ```
+If Python is missing, guide the person through installing Python from python.org, or the Mac's offered command line developer tools. Explain that this is a prerequisite the agent will use, not something they need to learn. Do not claim setup is complete while installation is pending.
 
-   "No stress data for today yet" is normal early in the day, right after setup, or for new rings. Daytime Stress needs Oura Ring Gen3 or later, an active membership and about 5 days of wear.
-7. **Explain how it behaves:**
-   - Checks run every 5 minutes while they are logged in and the computer is awake.
-   - Alerts usually arrive 15 to 30 minutes after the stress, because the ring syncs through the Oura phone app.
-   - Quiet hours default to midnight to 8 AM. Change them with `settings --quiet 22:00-08:00`.
-   - To reduce messages: `settings --min-increase 15`.
-   - To stop: `uninstall` (add `--delete-data` to remove saved keys).
+Put the project in a permanent folder such as `~/oura-stress-telegram`. If it already exists, inspect and reuse it without overwriting local changes.
 
-## Non-interactive setup
+- If Git is already available, clone `https://github.com/fkb032/oura-stress-telegram.git` there.
+- If Git is unavailable, download `https://github.com/fkb032/oura-stress-telegram/archive/refs/heads/main.zip` and extract it there using available download/archive tools. The person does not need to install Git.
 
-Only if the person sets these in their own shell first: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (skips pairing), `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET`. Setup still needs them to log in to Oura in a browser. Secrets are never accepted as command-line arguments.
+Read README.md before continuing. Do not run the release checklist or fault-injection tests during a person's installation.
 
-## Where things live
+## 2. Start the guided setup
 
-| What | Where |
+Explain: "I'll set up the program. You'll create a sender for your Telegram alerts, give it permission to read Oura, and check one test notification on your phone."
+
+Run the chosen Python with `oura_stress_telegram.py setup` from the project folder in a real interactive terminal or PTY. Stay with it through every prompt.
+
+If your terminal tool cannot let the person enter private values, help them open their own Terminal and give them one exact command with the real project path. Continue guiding the prompts and return to verification afterward. Do not leave them with an unexplained command and call the task done.
+
+If setup already has their Telegram or Oura app details, keep them unless the error says those details are rejected.
+
+### Telegram
+
+1. Have them open the official [@BotFather](https://t.me/BotFather) in Telegram and send `/newbot`.
+2. Suggest the display name **Oura Stress Alerts**. They choose an available username ending in `bot`; explain that the username must be unique if their first choice is taken.
+3. They paste the token into the hidden setup prompt in their terminal.
+4. They open their new bot, press **Start**, and send the six-character pairing code shown by setup as a normal private message.
+5. Confirm the bot's pairing confirmation arrives. That verifies the chat connection; the phone notification is checked separately below.
+
+### Oura
+
+Have them sign in at <https://developer.ouraring.com/applications> and choose **Create New**. Explain that Oura calls this an "application", but they are only filling in a connection form.
+
+Provide these values so they do not have to invent them:
+
+| Field | Value |
 |---|---|
-| Keys, login, settings, state | `~/.config/oura-stress-telegram/` (or `$OURA_STRESS_HOME`) |
-| Installed copy of the script | `~/.local/share/oura-stress-telegram/oura_stress_telegram.py` |
+| Display Name | `Oura stress alerts` |
+| Description | `Personal Telegram alerts when Oura records more high stress.` |
+| Contact Email | Their own email address |
+| Website | `https://github.com/fkb032/oura-stress-telegram` |
+| Privacy Policy | `https://github.com/fkb032/oura-stress-telegram` |
+| Terms of Service | `https://github.com/fkb032/oura-stress-telegram` |
+| Redirect URIs | `http://localhost:8765/callback` |
+| Scopes | Select **Daily** |
+
+The repository links are for this personal setup. Have them review and accept the Oura API Agreement and create the app. They paste the displayed **Client ID** and **Client Secret** into the setup prompts, keeping the secret out of chat.
+
+When the consent screen opens, tell them to turn on **Sleep, readiness, and activity**, then press **Allow**. That switch is the Daily permission, including the stress read this tool needs. Clicking Allow with the switch off is not enough. A separate sign-in may appear even if the developer portal is already signed in.
+
+### Automatic checks
+
+Answer **Y** to automatic background checks as part of the requested setup. The program tests the scheduled command and then waits for the scheduler to run it. Confirm those checks succeed before moving on.
+
+## 3. Verify the result on their phone
+
+Run with the same chosen Python:
+
+```bash
+python3 oura_stress_telegram.py status
+python3 oura_stress_telegram.py test
+```
+
+Check that `status` shows the connection, installed background checks and a recent successful background run. Treat a paused, failed or degraded result as unfinished. "No stress data for today yet" can be normal; it does not prevent the Telegram test.
+
+On iPhone, guide them to **Settings > Notifications > Telegram**. Allow notifications and enable **Lock Screen** or **Banners**. Let them choose when message previews appear; do not silently change their privacy preferences. Check Focus or Do Not Disturb if delivery is delayed.
+
+Have them leave the Telegram chat, send the test, and ask whether the notification appeared on their phone. If it only appears in the chat or on the computer, keep working on phone notification settings. If phone confirmation is unavailable, explicitly report it as unverified instead of claiming completion.
+
+For Linux, verify the actual systemd timer or cron run rather than relying on a successful install command. Cron remains experimental. Explain the logout limitation and the installer's option to keep running after logout.
+
+## 4. Finish with a short handoff
+
+Tell the person:
+
+- Which bot sends the alerts, and that the phone test and automatic checks passed.
+- The computer needs to stay awake. Oura updates can arrive late, so alerts report recorded stress rather than an instant reading.
+- Quiet hours are midnight to 8 AM by default. They can ask their agent to change the schedule or stop the alerts.
+
+Provide the exact command to stop the job, using the chosen Python and an absolute script path. Explain that `uninstall` keeps their saved connection; `uninstall --delete-data` also removes saved keys. Do not delete data unless requested.
+
+## When something goes wrong
+
+- **Missing Daily permission during setup:** run `setup` again, keep the saved app details, and enable **Sleep, readiness, and activity** on the consent screen. Finish the automatic-checks step afterward.
+- **Rejected app keys:** run `setup`, answer **n** when asked to keep Oura app details, and enter the correct Client ID and Client Secret.
+- **Oura's own sign-in or consent error page:** press Ctrl+C and restart the command. If it repeats, check the Client ID and Daily scope in the registered app before reentering its details.
+- **Failed localhost return:** paste the full address from the browser into the waiting terminal. It includes a temporary login code, so keep it out of chat and logs.
+- **No stress data yet:** have them sync the ring through the Oura app. Daytime Stress needs a supported ring, active membership and a few days of wear.
+- **Telegram polling conflict:** create a new dedicated bot; do not stop another program's bot.
+- **Connection works but no schedule exists:** run `install`, then check `status` again. Reconnecting alone does not install automatic checks.
+- **Other failures:** use README troubleshooting. Report the exact safe error and what is still unverified. Do not claim success or invent a provider outage.
+
+## Advanced setup, only when needed
+
+Existing private environment values can be used: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (skips pairing), `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET`. Do not make environment-variable setup the default for a nontechnical person. Secrets are never accepted as command-line arguments.
+
+| What | Location |
+|---|---|
+| Keys, login, settings, state | `~/.config/oura-stress-telegram/` or `$OURA_STRESS_HOME` |
+| Installed script | `~/.local/share/oura-stress-telegram/oura_stress_telegram.py` |
 | macOS schedule and log | `~/Library/LaunchAgents/local.oura-stress-telegram.plist`, `~/Library/Logs/oura-stress-telegram.log` |
 | Linux schedule | systemd user timer `oura-stress-telegram.timer`, or a crontab line tagged `# oura-stress-telegram` |

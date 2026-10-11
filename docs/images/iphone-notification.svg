@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="1260" viewBox="0 0 760 1260" role="img" aria-labelledby="title desc">
+  <title id="title">Example Oura stress alert on an iPhone</title>
+  <desc id="desc">Illustrative iPhone lock screen with a Telegram notification from Oura Stress Alerts. The message says: Oura recorded high stress: 15 min today. Your body has been showing physiological stress. If it fits, take a short break, a few slow breaths, or a walk. This is example data, not a device screenshot.</desc>
+  <defs>
+    <linearGradient id="wallpaper" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c3d9d3"/><stop offset=".46" stop-color="#768f8b"/><stop offset="1" stop-color="#253f43"/>
+    </linearGradient>
+    <linearGradient id="ridge" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#e9e1d2"/><stop offset="1" stop-color="#a4b8ad"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#fff" stop-opacity=".93"/><stop offset="1" stop-color="#e6ede8" stop-opacity=".94"/>
+    </linearGradient>
+    <linearGradient id="telegram" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#35b8f2"/><stop offset="1" stop-color="#208aca"/>
+    </linearGradient>
+    <clipPath id="screen"><rect x="67" y="49" width="626" height="1158" rx="79"/></clipPath>
+    <filter id="shadow" x="-25%" y="-10%" width="150%" height="140%"><feDropShadow dx="0" dy="13" stdDeviation="16" flood-color="#172723" flood-opacity=".18"/></filter>
+  </defs>
+  <rect width="760" height="1260" rx="42" fill="#f4f3ee"/>
+  <rect x="47" y="154" width="8" height="50" rx="4" fill="#4d5254"/>
+  <rect x="47" y="238" width="8" height="89" rx="4" fill="#4d5254"/>
+  <rect x="47" y="349" width="8" height="89" rx="4" fill="#4d5254"/>
+  <rect x="705" y="273" width="8" height="142" rx="4" fill="#4d5254"/>
+  <rect x="51" y="32" width="658" height="1192" rx="96" fill="#353a3c" filter="url(#shadow)"/>
+  <rect x="56" y="37" width="648" height="1182" rx="92" fill="#111719" stroke="#788084" stroke-width="2"/>
+  <g clip-path="url(#screen)">
+    <rect x="67" y="49" width="626" height="1158" fill="url(#wallpaper)"/>
+    <path d="M-70 802 C160 430 355 640 488 388 C657 119 780 173 889 255 L862 1080 L-70 1208Z" fill="#426266" opacity=".55"/>
+    <path d="M-40 1070 C150 666 328 788 465 621 C574 488 644 555 800 350 L830 1300 L-40 1300Z" fill="url(#ridge)"/>
+    <path d="M-65 1240 C203 840 371 1045 504 855 C640 667 789 813 895 587 L908 1358Z" fill="#385553" opacity=".92"/>
+    <path d="M195 1264 C386 1042 509 1172 750 934 L850 1300Z" fill="#1c393c"/>
+    <rect x="288" y="66" width="184" height="49" rx="25" fill="#101617"/>
+    <circle cx="443" cy="90" r="8" fill="#1d2c33"/>
+    <g fill="#f4f8f5" opacity=".92">
+      <rect x="574" y="79" width="5" height="8" rx="1"/><rect x="582" y="75" width="5" height="12" rx="1"/>
+      <rect x="590" y="71" width="5" height="16" rx="1"/><rect x="598" y="67" width="5" height="20" rx="1"/>
+      <rect x="630" y="70" width="30" height="15" rx="4" fill="none" stroke="#f4f8f5" stroke-width="2"/>
+      <rect x="633" y="73" width="23" height="9" rx="2"/><rect x="663" y="75" width="3" height="5" rx="1"/>
+    </g>
+    <g fill="#f2f5eb" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif" text-anchor="middle">
+      <text x="380" y="199" font-size="28" font-weight="500">Wednesday, October 7</text>
+      <text x="380" y="324" font-size="126" font-weight="600" letter-spacing="-6">10:24</text>
+    </g>
+    <g filter="url(#shadow)">
+      <rect x="91" y="474" width="578" height="323" rx="35" fill="url(#glass)" stroke="#fff" stroke-opacity=".7"/>
+    </g>
+    <g font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif" fill="#182423">
+      <rect x="115" y="499" width="40" height="40" rx="11" fill="url(#telegram)"/>
+      <path d="M122 518 L147 508 Q150 507 149 511 L145 532 Q144 535 142 533 L135 527 L132 531 Q130 533 130 529 L131 522 L143 513 L128 520Z" fill="#fff"/>
+      <text x="168" y="527" font-size="22" font-weight="600">TELEGRAM</text>
+      <text x="641" y="527" font-size="22" text-anchor="end" fill="#687570">now</text>
+      <text x="115" y="575" font-size="29" font-weight="700">Oura Stress Alerts</text>
+      <circle cx="125" cy="610" r="10" fill="#eb4845"/>
+      <text x="145" y="619" font-size="27" font-weight="600">Oura recorded high stress:</text>
+      <text x="115" y="655" font-size="27">15 min today.</text>
+      <text x="115" y="695" font-size="25">Your body has been showing physiological</text>
+      <text x="115" y="729" font-size="25">stress. If it fits, take a short break, a few</text>
+      <text x="115" y="763" font-size="25">slow breaths, or a walk.</text>
+    </g>
+    <circle cx="151" cy="1108" r="39" fill="#172626" fill-opacity=".4"/>
+    <path d="M142 1090 H160 L156 1102 V1125 H146 V1102Z" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>
+    <circle cx="609" cy="1108" r="39" fill="#172626" fill-opacity=".4"/>
+    <path d="M590 1098 H600 L604 1093 H615 L619 1098 H628 V1122 H590Z" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>
+    <circle cx="609" cy="1109" r="7" fill="none" stroke="#fff" stroke-width="3"/>
+    <rect x="272" y="1182" width="216" height="8" rx="4" fill="#fff" fill-opacity=".92"/>
+  </g>
+</svg>

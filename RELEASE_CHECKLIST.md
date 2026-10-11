@@ -3,6 +3,30 @@
 Automated tests mock Oura and Telegram. Before calling a version tested end to end,
 do this once on a real account and record the date and result below.
 
+## Distribution acceptance
+
+The release succeeds when a nontechnical person can give an agent the public
+GitHub URL and say "Set this up", then receive a test notification on their phone
+with automatic checks running. A working API call or a Telegram Web receipt is
+not sufficient for this acceptance check.
+
+- Start from the public README and its copyable agent request, on a fresh account
+  or clean machine. Follow AGENTS.md without unexplained developer steps.
+- Confirm the agent handles downloading, Python selection, setup and verification,
+  including a path that does not require Git.
+- Record where the person needed account sign-in, consent or private key entry,
+  and any point where they were unsure what to do next.
+- On iPhone, confirm a real test notification appears outside the Telegram chat.
+  Check that the notification matches the example wording. The README image is
+  explicitly illustrative and is not evidence of this real-device check.
+- Confirm automatic checks, a simple way to change quiet hours, and a clear way
+  to stop the alerts. Record time and assistance rather than estimating them.
+
+**Not yet verified:** a fresh nontechnical user's complete agent-led setup and
+an actual iPhone push notification. The earlier live run verified Telegram Web
+receipt, not the phone notification. A real iPhone screenshot can replace the
+illustrative README image after that device check.
+
 ## Live run with a fresh Oura application
 
 1. Register a new application at https://developer.ouraring.com/applications with
@@ -119,3 +143,13 @@ Telegram notices after a terminal error, explain saved logins after temporary
 read failures, and include a recovery command in paused installation failures.
 These final corrections have regression coverage but were not sent for a third
 model review. No approval score is claimed for them.
+
+### Distribution guide follow-up
+
+The public README now leads with a copyable agent setup request, explains the
+account steps in plain language, includes an illustrative iPhone notification
+image with example data, and moves manual terminal setup into an optional section.
+AGENTS.md tells installation agents to perform the technical work, provide exact
+Oura form values, support downloading without Git, and stay until phone delivery
+and automatic checks are verified. This is preparation for the distribution
+acceptance test above; it is not a claim that a fresh user or phone test passed.
