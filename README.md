@@ -5,14 +5,14 @@
 Free and open source. Your computer checks Oura and sends the alert through your own Telegram bot. No coding required.
 
 <p align="center">
-  <img src="docs/images/iphone-notification.svg" alt="Illustration of an iPhone showing a Telegram notification from Oura Stress Alerts: Oura recorded high stress, 15 minutes today, followed by a gentle suggestion to take a break." width="360">
+  <img src="docs/images/iphone-notification.svg" alt="Illustration of an iPhone showing a Telegram notification from Oura Stress Alerts: Oura recorded high stress, 15 minutes today, with a preview of the message." width="360">
   <br>
   <sub>Illustrative iPhone preview with example data. Appearance depends on your iOS, Telegram and notification settings.</sub>
 </p>
 
 ## Start here: ask your agent to set it up
 
-Copy this into an AI agent that can use the terminal on your Mac or Linux computer:
+Copy this into an agent with terminal access on your Mac or Linux computer, such as Claude Code, Codex or Cursor's agent:
 
 ```text
 Set up https://github.com/fkb032/oura-stress-telegram for me.
@@ -34,6 +34,7 @@ You handle the account steps, with your agent beside you:
 
 - An **Oura Ring Gen3 or Ring 4**, an active **Oura Membership**, and **Daytime Stress already showing** in the Oura app.
 - **Telegram on your iPhone**, with notifications allowed. Other phones with Telegram can receive these alerts too.
+- **Telegram on your computer during setup**, using [Telegram Web](https://web.telegram.org/) or the desktop app. This lets you copy the bot token directly into the setup window.
 - A **Mac or Linux computer** that stays on during your day. Checks run while the computer is awake; the default setup also requires you to be logged in. Mac has been tested live. Linux scheduling still needs live testing; cron is experimental.
 - An AI agent with access to your computer, or the manual instructions below.
 
@@ -43,7 +44,9 @@ There is no separate iPhone app to install. The program runs on your computer; t
 
 Open **Settings > Notifications > Telegram**, turn on **Allow Notifications**, and select **Lock Screen** or **Banners**. Your **Show Previews** setting controls when the message text is visible. Focus or Do Not Disturb may delay notifications. [Apple's notification settings guide](https://support.apple.com/guide/iphone/change-notification-settings-iph7c3d96bab/ios).
 
-Open your new bot in Telegram and press **Start** during pairing. Leave the chat, then have your agent send the test and check your phone. A message visible only in Telegram on the computer is not confirmation that phone notifications work.
+Open your new bot in Telegram and press **Start** during pairing. Then put Telegram in the background: **lock your iPhone** to test Lock Screen alerts, or **go to the Home Screen** to test Banners. Have your agent send the test.
+
+Expect **🧪 Test from Oura stress alerts. Telegram works.** Confirm that it appears on the lock screen or as an iOS banner while Telegram is in the background. An in-app Telegram banner or a message on the computer does not pass this check. Real stress alerts look like the illustrated example above.
 
 ## After setup
 
@@ -75,7 +78,7 @@ cd ~/oura-stress-telegram
 python3 --version
 ```
 
-You need 3.9 or newer. On a Mac, if a window asks to install "command line developer tools", click **Install**, wait for it to finish, then run the command again.
+You need 3.9 or newer. On a Mac, if a window asks to install "command line developer tools", click **Install**, wait for it to finish, then run the command again. If you installed Python from python.org, open its folder in Applications and run **Install Certificates.command** before continuing.
 
 **4. Run setup and follow the prompts:**
 
@@ -159,7 +162,7 @@ python3 oura_stress_telegram.py settings --min-increase 15
 
 ## Project status
 
-Version 0.1.0. Live macOS setup with a fresh Oura application, Telegram delivery, both callback paths, background startup, token refresh and lost-response recovery were tested on October 10, 2026. The later review-driven recovery fixes are covered by unit tests only; the interactive OAuth flow was not repeated after those changes. Automated tests run on macOS and Linux. Untested cases and test deviations, including logout/login, access revocation and live Linux scheduling, are recorded in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). Please [open an issue](https://github.com/fkb032/oura-stress-telegram/issues) if anything is confusing or broken.
+Version 0.1.0. A fresh agent-led setup by a nontechnical user and delivery to a real iPhone have not been tested yet. The phone image is illustrative. Live macOS setup with a fresh Oura application, Telegram delivery, both callback paths, background startup, token refresh and lost-response recovery were tested on October 10, 2026. The later review-driven recovery fixes are covered by unit tests only; the interactive OAuth flow was not repeated after those changes. Automated tests run on macOS and Linux. Untested cases and test deviations, including logout/login, access revocation and live Linux scheduling, are recorded in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). Please [open an issue](https://github.com/fkb032/oura-stress-telegram/issues) if anything is confusing or broken.
 
 ## For developers
 

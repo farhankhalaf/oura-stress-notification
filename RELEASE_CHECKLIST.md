@@ -16,9 +16,12 @@ not sufficient for this acceptance check.
   including a path that does not require Git.
 - Record where the person needed account sign-in, consent or private key entry,
   and any point where they were unsure what to do next.
-- On iPhone, confirm a real test notification appears outside the Telegram chat.
-  Check that the notification matches the example wording. The README image is
-  explicitly illustrative and is not evidence of this real-device check.
+- Put Telegram in the background before the phone test: lock the iPhone to test
+  Lock Screen alerts, or go to the Home Screen to test Banners. Confirm the iOS
+  notification says "Test from Oura stress alerts. Telegram works." An in-app
+  Telegram banner does not pass. Check real-alert wording separately when an
+  actual stress alert arrives. The README image is explicitly illustrative and
+  is not evidence of this real-device check.
 - Confirm automatic checks, a simple way to change quiet hours, and a clear way
   to stop the alerts. Record time and assistance rather than estimating them.
 
@@ -153,3 +156,11 @@ AGENTS.md tells installation agents to perform the technical work, provide exact
 Oura form values, support downloading without Git, and stay until phone delivery
 and automatic checks are verified. This is preparation for the distribution
 acceptance test above; it is not a claim that a fresh user or phone test passed.
+
+The subsequent one-round Opus 5.5 light review scored the onboarding 80/100.
+Follow-up documentation changes require testing with Telegram in the background,
+state the actual test-message text, explain using Telegram on the computer to copy
+the token, restore the python.org certificate step, classify quiet-hours skips,
+and scope AGENTS.md to installation requests. The iPhone illustration was updated
+to show a lower-screen card with plain preview text. These host changes were
+visually and structurally checked after review, not sent for another model round.

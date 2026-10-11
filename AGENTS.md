@@ -1,8 +1,10 @@
 # Set up Oura stress alerts for this person
 
+Use this guide for installation or setup requests. For development or review requests, use the README developer section and RELEASE_CHECKLIST.md; do not start account setup or install a background job unless requested.
+
 Assume the person is not a developer. Their request may be only "Set this up" plus the repository URL. Do the technical work yourself and guide them through account steps one at a time. Do not stop at a plan or a list of commands.
 
-**Done means both:** the person confirms a test notification appeared on their phone, and `status` shows automatic checks installed with a recent successful background run. A successful send response or a message in Telegram Web alone does not verify phone delivery.
+**Done means both:** the person confirms the test as an iOS notification with Telegram in the background, and the connection check and scheduler verification described in section 3 pass. A successful send response or a message in Telegram Web alone does not verify phone delivery.
 
 ## How to help
 
@@ -12,6 +14,7 @@ Assume the person is not a developer. Their request may be only "Set this up" pl
 - Never print, copy, commit or upload `~/.config/oura-stress-telegram/` or its contents.
 - Have the person complete Oura or Telegram sign-in if needed. Do not sign in for them unless they explicitly ask you to.
 - For ordinary installation, do not edit `oura_stress_telegram.py` to work around a failure. Use the troubleshooting guidance, report a clear blocker, or help prepare an issue without secrets. A maintainer's explicit development request is separate from installation.
+- If your agent environment blocks network, file or scheduler access, use its normal permission flow or the person's own Terminal. Verify in that user environment before calling a restriction a program failure.
 - Use a new Telegram bot dedicated to this tool. Do not reuse a bot another program already polls.
 
 ## 1. Check the computer and get the code
@@ -20,7 +23,7 @@ Use a Mac or Linux computer. On Windows, explain that it is not supported yet an
 
 Find Python 3.9 or newer by running `python3 --version`. Use its actual path consistently for setup and later commands. No pip packages, Node, Docker or other project dependencies are needed.
 
-If Python is missing, guide the person through installing Python from python.org, or the Mac's offered command line developer tools. Explain that this is a prerequisite the agent will use, not something they need to learn. Do not claim setup is complete while installation is pending.
+If Python is missing, guide the person through the Mac's offered command line developer tools, or a supported Python from python.org. Explain that this is a prerequisite the agent will use, not something they need to learn. For a python.org installation on macOS, run **Install Certificates.command** in that version's Applications/Python folder before setup, as described in the [Python macOS installation guide](https://docs.python.org/3/using/mac.html). Do not claim setup is complete while installation is pending.
 
 Put the project in a permanent folder such as `~/oura-stress-telegram`. If it already exists, inspect and reuse it without overwriting local changes.
 
@@ -41,9 +44,11 @@ If setup already has their Telegram or Oura app details, keep them unless the er
 
 ### Telegram
 
+Open [Telegram Web](https://web.telegram.org/) or Telegram Desktop on the computer used for setup. Have the person sign in themselves, using the phone's QR-code login if offered. This puts BotFather and the terminal on the same computer so they can copy the token directly into the hidden prompt without retyping it or sharing it in AI chat.
+
 1. Have them open the official [@BotFather](https://t.me/BotFather) in Telegram and send `/newbot`.
 2. Suggest the display name **Oura Stress Alerts**. They choose an available username ending in `bot`; explain that the username must be unique if their first choice is taken.
-3. They paste the token into the hidden setup prompt in their terminal.
+3. They copy the token from BotFather on the computer and paste it into the hidden setup prompt in their terminal. Explain that no characters appear while pasting; press Enter once after pasting.
 4. They open their new bot, press **Start**, and send the six-character pairing code shown by setup as a normal private message.
 5. Confirm the bot's pairing confirmation arrives. That verifies the chat connection; the phone notification is checked separately below.
 
@@ -70,7 +75,7 @@ When the consent screen opens, tell them to turn on **Sleep, readiness, and acti
 
 ### Automatic checks
 
-Answer **Y** to automatic background checks as part of the requested setup. The program tests the scheduled command and then waits for the scheduler to run it. Confirm those checks succeed before moving on.
+Answer **Y** to automatic background checks as part of the requested setup. The program tests the scheduled command and then waits for the scheduler to run it. Confirm those checks succeed before moving on. On macOS, explain that a notice about Python running in the background is expected for this job; keep it enabled if they want automatic checks.
 
 ## 3. Verify the result on their phone
 
@@ -81,11 +86,11 @@ python3 oura_stress_telegram.py status
 python3 oura_stress_telegram.py test
 ```
 
-Check that `status` shows the connection, installed background checks and a recent successful background run. Treat a paused, failed or degraded result as unfinished. "No stress data for today yet" can be normal; it does not prevent the Telegram test.
+Check that `status` shows the connection and installed background checks. A successful run has outcome `ok` or `ok: alert sent`. If setup's verification check passed but the scheduler reports `skipped: quiet hours`, the scheduler is working and waiting for quiet hours to end; explain that rather than reinstalling or claiming a stress read occurred in that scheduled run. Other skips, paused, failed and degraded results need investigation. "No stress data for today yet" can be normal; it does not prevent the Telegram test.
 
 On iPhone, guide them to **Settings > Notifications > Telegram**. Allow notifications and enable **Lock Screen** or **Banners**. Let them choose when message previews appear; do not silently change their privacy preferences. Check Focus or Do Not Disturb if delivery is delayed.
 
-Have them leave the Telegram chat, send the test, and ask whether the notification appeared on their phone. If it only appears in the chat or on the computer, keep working on phone notification settings. If phone confirmation is unavailable, explicitly report it as unverified instead of claiming completion.
+Before sending the test, have them put Telegram in the background: lock the iPhone if Lock Screen alerts are enabled, or go to the Home Screen if testing Banners. Then run `test` and ask whether it appeared on the lock screen or as an iOS banner while Telegram was in the background. Expect **🧪 Test from Oura stress alerts. Telegram works.** Real stress alerts use the wording pictured in the README. An in-app Telegram banner, a chat message or a computer notification does not pass this phone-push check. If phone confirmation is unavailable, explicitly report it as unverified instead of claiming completion.
 
 For Linux, verify the actual systemd timer or cron run rather than relying on a successful install command. Cron remains experimental. Explain the logout limitation and the installer's option to keep running after logout.
 

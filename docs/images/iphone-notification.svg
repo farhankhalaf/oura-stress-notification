@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="760" height="1260" viewBox="0 0 760 1260" role="img" aria-labelledby="title desc">
   <title id="title">Example Oura stress alert on an iPhone</title>
-  <desc id="desc">Illustrative iPhone lock screen with a Telegram notification from Oura Stress Alerts. The message says: Oura recorded high stress: 15 min today. Your body has been showing physiological stress. If it fits, take a short break, a few slow breaths, or a walk. This is example data, not a device screenshot.</desc>
+  <desc id="desc">Illustrative iPhone lock screen with a Telegram notification from Oura Stress Alerts. The preview begins: Oura recorded high stress: 15 min today. Your body has been showing... The remaining message opens in Telegram. This is example data, not a device screenshot.</desc>
   <defs>
     <linearGradient id="wallpaper" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#c3d9d3"/><stop offset=".46" stop-color="#768f8b"/><stop offset="1" stop-color="#253f43"/>
@@ -43,20 +43,19 @@
       <text x="380" y="324" font-size="126" font-weight="600" letter-spacing="-6">10:24</text>
     </g>
     <g filter="url(#shadow)">
-      <rect x="91" y="474" width="578" height="323" rx="35" fill="url(#glass)" stroke="#fff" stroke-opacity=".7"/>
+      <rect x="91" y="864" width="578" height="188" rx="33" fill="url(#glass)" stroke="#fff" stroke-opacity=".7"/>
     </g>
     <g font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif" fill="#182423">
-      <rect x="115" y="499" width="40" height="40" rx="11" fill="url(#telegram)"/>
-      <path d="M122 518 L147 508 Q150 507 149 511 L145 532 Q144 535 142 533 L135 527 L132 531 Q130 533 130 529 L131 522 L143 513 L128 520Z" fill="#fff"/>
-      <text x="168" y="527" font-size="22" font-weight="600">TELEGRAM</text>
-      <text x="641" y="527" font-size="22" text-anchor="end" fill="#687570">now</text>
-      <text x="115" y="575" font-size="29" font-weight="700">Oura Stress Alerts</text>
-      <circle cx="125" cy="610" r="10" fill="#eb4845"/>
-      <text x="145" y="619" font-size="27" font-weight="600">Oura recorded high stress:</text>
-      <text x="115" y="655" font-size="27">15 min today.</text>
-      <text x="115" y="695" font-size="25">Your body has been showing physiological</text>
-      <text x="115" y="729" font-size="25">stress. If it fits, take a short break, a few</text>
-      <text x="115" y="763" font-size="25">slow breaths, or a walk.</text>
+      <g transform="translate(116 892) scale(1.4)">
+        <rect width="40" height="40" rx="11" fill="url(#telegram)"/>
+        <path d="M7 19 L32 9 Q35 8 34 12 L30 33 Q29 36 27 34 L20 28 L17 32 Q15 34 15 30 L16 23 L28 14 L13 21Z" fill="#fff"/>
+      </g>
+      <text x="189" y="908" font-size="27" font-weight="700">Oura Stress Alerts</text>
+      <text x="641" y="908" font-size="22" text-anchor="end" fill="#687570">now</text>
+      <circle cx="200" cy="943" r="8" fill="#eb4845"/>
+      <text x="217" y="951" font-size="25">Oura recorded high stress:</text>
+      <text x="189" y="986" font-size="25">15 min today.</text>
+      <text x="189" y="1021" font-size="25">Your body has been showing…</text>
     </g>
     <circle cx="151" cy="1108" r="39" fill="#172626" fill-opacity=".4"/>
     <path d="M142 1090 H160 L156 1102 V1125 H146 V1102Z" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>
