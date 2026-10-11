@@ -149,8 +149,8 @@ model review. No approval score is claimed for them.
 
 ### Distribution guide follow-up
 
-The public README shows an illustrative iPhone notification with example data
-and ends with a one-line agent setup request. The image has a transparent outer
+The public README puts a one-line agent setup request above an illustrative
+iPhone notification with example data. The image has a transparent outer
 background for light and dark themes. Detailed requirements, manual setup,
 troubleshooting and project status live in SETUP.md.
 AGENTS.md tells installation agents to perform the technical work, provide exact
