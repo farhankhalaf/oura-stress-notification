@@ -9,5 +9,5 @@ Set up https://github.com/fkb032/oura-stress-notification for me.
 ```
 
 <p align="center">
-  <img src="docs/images/demo-real.gif" alt="Real iPhone screenshots: a manually triggered Telegram alert reports 45 minutes of recorded high stress, followed by the Oura graph and selection of an earlier stressed point." width="480">
+  <img src="docs/images/demo-walkthrough.gif" alt="Edited iPhone walkthrough using real captures: a notification arrives on the lock screen, then the phone unlocks, Oura opens, and Daytime Stress appears. Taps and transitions are simulated." width="420">
 </p>

@@ -81,7 +81,7 @@ iPhone lock-screen screenshot showing the real message, ring avatar and Telegram
 badge. From that screenshot, the public demo uses only the alert notification
 crop; other notifications and personal widgets are excluded.
 
-The replacement README GIF combines that notification with real Oura graph views,
+The first replacement README GIF combined that notification with real Oura graph views,
 including Oura's red background when an earlier stressed point is selected. Graph
 and message data are unchanged. App display overlays were restored after capture.
 The animation uses cropped screenshots and crossfades, not a continuous recording;
@@ -93,6 +93,34 @@ blocking findings. Six low-severity findings were accepted: clearer capture/edit
 provenance, precise notification wording, historical tense, an in-image caption
 for the earlier selected point, and explicit rebuild output/font instructions.
 Those follow-up edits were checked by the host, not sent for a second model round.
+That stacked layout did not meet the required phone walkthrough sequence; the
+score did not establish acceptance of that sequence.
+
+### 2026-10-11 full-phone walkthrough revision
+
+The next revision uses one consistent iPhone frame: clear lock screen, real
+notification reveal, unlock swipe, visible Oura icon tap, Oura Today, visible Stress
+tap, and the real Daytime Stress screen. The Oura captures came from iPhone Mirroring.
+Private notification/widget areas were removed from the lock screen with generated
+wallpaper fill. The Home Screen calendar widget was kept with generic event titles;
+its times, layout, app notification badges and counts were retained. App icons and
+Oura UI/data were retained. Interactions
+and transitions are simulated. The brief "Later" transition marks the time between
+the original notification capture and the later app reading. Graph overlays were
+restored after capture. This is an edited demonstration, not continuous footage.
+
+Opus 5.5 explicitly accepted the final rendered sequence: "AGREE. This exact rendered
+candidate meets the full walkthrough brief." Three acceptance checks used requested
+xhigh effort and reported standard speed. The first two scored 78 and 86 and did
+not agree, identifying unlock/launch defects and a status-bar seam. Those defects
+were corrected. The final check scored 93/100 with no blocking findings and verified
+the full sequence, generic calendar titles, original event times and badge counts.
+
+The accepted GIF has SHA-256
+`16ce8be0273b15d67d20fd3becf619f599d4ce000c7059a16b73490cb6b93e36`.
+Its image and animation bytes were kept unchanged after acceptance. Only this
+acceptance record was added afterward. Minor status-bar and palette limitations
+were explicitly accepted as nonblocking at the README display size.
 
 ### 2026-10-11 bot picture
 
@@ -253,7 +281,7 @@ optimization preserves decoded frames while reducing download size. These host
 fixes have automated and visual checks; they were not sent for another model
 round and do not inherit a new review score.
 
-The [two earlier GIF demos](docs/DEMOS.md#earlier-mockups) show simulated Telegram delivery, unlocking the
+The [two earlier GIF demos](docs/DEMOS.md#earlier-versions) show simulated Telegram delivery, unlocking the
 phone, opening Oura, tapping Stress and viewing an example whose first high-stress
 reading is at 3 PM. Their layout was checked against the provided screenshot and
 Oura in iPhone Mirroring. No real personal screenshots or readings were published in that release.

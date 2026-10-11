@@ -1,82 +1,82 @@
-# Notification demo
+# iPhone walkthrough
 
-The README now uses **real iPhone screenshots**, captured on October 11, 2026.
-The Telegram notification shows the dedicated bot's ring avatar and its actual
-message. The Oura views were captured from the iPhone through iPhone Mirroring on
-the Mac, and show real readings from the same day.
+The README demo stays inside one iPhone frame throughout:
 
-<img src="images/demo-real.gif" alt="Real Telegram alert and Oura screenshots, with a recorded stressed point selected." width="480">
+1. A clear lock screen.
+2. The real Telegram stress notification appears.
+3. A brief "Later" transition, then an unlock swipe.
+4. A simulated tap on the actual Oura Home Screen icon opens Oura Today.
+5. A simulated tap on Stress opens the real Daytime Stress screen.
 
-[Still image](images/demo-real.png)
+<img src="images/demo-walkthrough.gif" alt="Full iPhone walkthrough: notification arrives, unlock, tap Oura, then open Daytime Stress." width="420">
 
-## What this demonstrates
+[Still image](images/demo-walkthrough.png)
 
-- A real alert reached the physical iPhone's lock-screen notification list while
-  Telegram was in the background. The owner confirmed delivery and supplied the
-  notification screenshot.
-- The alert was triggered manually for the demo using the current Oura API total
-  and the program's normal message formatter. It was not a naturally occurring
-  alert from a newly observed increase. The saved alert baseline was not changed.
-- The app initially shows its latest view, then an earlier stressed point is
-  selected. Oura itself changes the graph background to red for that selection.
-  The selection does not mean the wearer is currently stressed.
-- Open Oura separately and tap Stress to inspect the graph. Tapping the Telegram
-  notification opens Telegram. Oura sync and API updates can delay an alert.
+## Sources and edits
 
-## Edits and source images
+This is an edited walkthrough with simulated interactions, not a continuous screen
+recording. The notification is from the owner's physical iPhone screenshot.
+The Home Screen, Oura Today and Daytime Stress views were captured through iPhone
+Mirroring on the Mac on October 11, 2026. The Oura app screens and graph are real,
+with their original text, points, colors and readings. The navigation animation
+follows the native transition observed during capture.
 
-This is a ten-second sequence assembled from screenshots, not continuous footage.
-Only cropping, resizing, joining the graph and total cards across removed controls,
-rounded clipping, explanatory labels and crossfades were added.
-Notification text, graph points, times, colors and totals were not redrawn
-or retouched. GIF encoding reduces the color palette.
+The lock-screen notification shows 45 minutes at 13:28. The later Home Screen and
+Oura captures show 14:12 and 14:15, when the total had reached one hour. "Later"
+marks this compressed passage of time. The data was not changed to make the
+screens agree, and the demo does not imply an instant Oura reading or alert.
 
-The notification crop excludes other notifications, widgets, the clock and carrier.
-The Oura crop excludes device chrome, the floating accessibility control and
-nonessential panels. The graph and total cards are joined across the removed
-movement/tag controls. The movement/tag graph overlays were hidden in the app for
-capture and restored afterward. The full private screenshots are not in this repository.
+The empty lock screen was made from the same screenshot by removing notification
+cards and widgets and filling the covered wallpaper with image-generation cleanup.
+Its original clock, date, status bar and bottom controls were retained. The Home
+Screen calendar widget is kept, with generic event titles: "Plan the week",
+"Evening walk" and "Read and unwind". Its layout and event times are preserved.
+The actual app icons, positions, labels, notification badges and counts are retained.
+No Oura app UI was generated.
+Raw originals containing unrelated private information are not in this repository.
 
-The public, cropped sources are:
+The native movement and tag overlays were temporarily turned off for a clean graph
+and restored after capture. Other edits are screen cropping, a consistent rounded
+phone boundary, transparent outer margins, notification reveal, unlock/launch/slide
+transitions, simulated touch indicators, and a fade through black at the loop seam.
+The launch-only snapshot omits the moving clock, battery and Dynamic Island using
+the app's own background pixels; the held app view restores the original status
+bar directly. This avoids duplicated device overlays during the simulated zoom.
+GIF encoding uses a palette per frame and light lossy compression to reduce the
+download size. These presentation edits do not change stress data.
 
-- [Actual Telegram notification](images/real-notification.png)
-- [Oura's latest view](images/real-oura-current.png)
-- [Oura with an earlier stressed point selected](images/real-oura-stress.png)
-
-Notification appearance, including avatar placement and colors, depends on the
-person's iOS, Telegram and notification settings.
+The Telegram notification opens Telegram when tapped. The demo correctly unlocks
+and taps the separate Oura icon to open Oura. The alert was manually triggered
+using the tool's normal formatter and a real API reading; delivery was confirmed
+on the physical iPhone lock screen. Notification appearance varies with iOS,
+Telegram and the person's settings.
 
 ## Rebuild
 
-The composition source is [render_real_demo.mjs](images/render_real_demo.mjs).
+The safe source assets are in [images/walkthrough](images/walkthrough).
+The composition source is [render_walkthrough.mjs](images/render_walkthrough.mjs).
 Use a scratch folder with Node and `@resvg/resvg-js`, plus ffmpeg and gifsicle.
-These are development tools for the GIF; the alert program needs only Python's
-standard library.
-
-Caption fonts use Helvetica Neue when available, then Arial or the system sans-serif
-fallback. The captions can render differently on another system; the source app
-and notification text are pixels in the screenshots and do not depend on fonts.
-
-Copy the renderer into that scratch folder so Node can find the dependency. Pass
-absolute paths for the repository image directory and scratch output directory:
+These development tools are only for the GIF; the alert program remains Python
+standard-library only. Copy the renderer into the scratch folder so Node can find
+its dependency, then use absolute paths:
 
 ```sh
-node render_real_demo.mjs /path/to/repo/docs/images /path/to/scratch/frames
-ffmpeg -y -framerate 8 -i /path/to/scratch/frames/%04d.png \
-  -filter_complex '[0:v]split[a][b];[a]palettegen=max_colors=256:reserve_transparent=1[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:alpha_threshold=128' \
-  -loop 0 -final_delay 12 /path/to/scratch/unoptimized.gif
-gifsicle -O3 /path/to/scratch/unoptimized.gif -o /path/to/repo/docs/images/demo-real.gif
-cp /path/to/scratch/frames/poster.png /path/to/repo/docs/images/demo-real.png
+node render_walkthrough.mjs /path/to/repo/docs/images /path/to/scratch/frames
+ffmpeg -y -framerate 15 -i /path/to/scratch/frames/%04d.png \
+  -filter_complex '[0:v]split[a][b];[a]palettegen=max_colors=256:reserve_transparent=1:stats_mode=single[p];[b][p]paletteuse=new=1:dither=bayer:bayer_scale=4:alpha_threshold=128' \
+  -loop 0 -final_delay 7 /path/to/scratch/unoptimized.gif
+gifsicle -O3 --lossy=20 /path/to/scratch/unoptimized.gif -o /path/to/repo/docs/images/demo-walkthrough.gif
+cp /path/to/scratch/frames/poster.png /path/to/repo/docs/images/demo-walkthrough.png
 ```
 
-Check the beginning, both graph states, transitions and loop boundary on light and
-dark backgrounds. Compare decoded frames before and after GIF optimization.
+The brief "Later" text uses Helvetica Neue, Arial or the system sans-serif fallback.
+All iPhone and app lettering is in the captured source pixels. Review the full loop
+on light and dark backgrounds, including the blank opening, notification arrival,
+each visible tap, both app transitions and the loop seam.
 
-## Earlier mockups
+## Earlier versions
 
-The [realistic simulation](images/demo-realistic.gif) and
-[illustrated walkthrough](images/demo-illustrated.gif) use synthetic data and
-simulated UI. They are retained as earlier artwork, not the README demo or evidence
-of phone delivery. Their source is [render_demos.mjs](images/render_demos.mjs).
-The earlier [static overview](images/stress-to-notification.svg) and
-[phone illustration](images/iphone-notification.svg) are also mockups.
+The [stacked real-screenshot explainer](images/demo-real.gif) was replaced because
+it did not show the requested phone walkthrough. The [older realistic mockup](images/demo-realistic.gif)
+and [illustrated mockup](images/demo-illustrated.gif) use synthetic data and UI.
+They are retained as earlier artwork, not the README demo.

@@ -194,10 +194,13 @@ A fresh nontechnical user's complete agent-led setup is also unverified.
 
 On October 11, 2026, a manually triggered alert from the Mac was confirmed on the
 physical iPhone lock screen and captured in a screenshot. The [README demo](docs/DEMOS.md)
-combines that real notification with real Oura screenshots. Cropping, joining the
-graph and total cards across removed controls, labels and transitions were added;
-notification text, graph points and stress totals were not changed.
-It is a screenshot sequence, not a continuous recording or an instant-alert claim.
+shows a full phone walkthrough using that notification and real Home Screen and
+Oura captures. The lock screen was cleaned, covered wallpaper was reconstructed,
+Home Screen calendar titles were made generic, and interactions and transitions
+were simulated. The calendar layout, event times and app notification counts remain.
+Notification text, graph points
+and stress readings are unchanged. A "Later" transition marks the later app capture.
+It is an edited walkthrough, not a continuous recording or an instant-alert claim.
 
 The October 10, 2026 live macOS run verified fresh-app setup, Telegram delivery,
 both callbacks, background startup, token refresh and lost-response recovery.
