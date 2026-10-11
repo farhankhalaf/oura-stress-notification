@@ -213,6 +213,14 @@ class NativeWindowsTests(unittest.TestCase):
                                "-EncodedCommand", encoded], capture_output=True, encoding="utf-8",
                               creationflags=subprocess.CREATE_NO_WINDOW, timeout=60)
 
+    def test_minimal_environment_can_run_windows_powershell(self):
+        result = subprocess.run([ost.windows_powershell(), "-NoProfile", "-NonInteractive",
+                                 "-Command", "Write-Output 'ready'"],
+                                env=ost.scheduled_environment(self.paths), capture_output=True,
+                                encoding="utf-8", creationflags=subprocess.CREATE_NO_WINDOW, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "ready", result.stderr)
+
     def test_private_creation_and_unrelated_directory_are_safe(self):
         try:
             ost.write_json_private(self.paths.config, {"value": "fake"})

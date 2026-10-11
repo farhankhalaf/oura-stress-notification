@@ -1725,8 +1725,12 @@ def windows_pythonw() -> str:
 
 def scheduled_environment(paths: Paths) -> dict:
     if is_windows():
-        keys = {"systemroot", "windir", "userprofile", "localappdata", "appdata",
-                "temp", "tmp", "path"}
+        keys = {"systemroot", "windir", "systemdrive", "comspec", "pathext",
+                "userprofile", "username", "userdomain", "homedrive", "homepath",
+                "localappdata", "appdata", "allusersprofile", "programdata",
+                "programfiles", "programfiles(x86)", "commonprogramfiles",
+                "commonprogramfiles(x86)", "psmodulepath", "number_of_processors",
+                "processor_architecture", "temp", "tmp", "path"}
         env = {key: value for key, value in os.environ.items() if key.lower() in keys}
         env.update(PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
     else:

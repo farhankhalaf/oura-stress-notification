@@ -346,7 +346,7 @@ class TokenTests(Base):
         self.assertRegex(self.http.sent[0], r"connect-oura(?:&#x27;)?</code>")
         self.assertIn(ost.SCRIPT_NAME, self.http.sent[0])
         # The test folder is not the default one, so the command must carry it.
-        self.assertIn("OURA_STRESS_HOME=", self.http.sent[0])
+        self.assertIn("--data-dir" if os.name == "nt" else "OURA_STRESS_HOME=", self.http.sent[0])
         self.assertEqual(ost.read_last_run(self.paths)["outcome"],
                          "paused: Oura needs to be reconnected")
         calls = len(self.http.calls)
