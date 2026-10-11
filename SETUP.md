@@ -18,7 +18,7 @@ Open **Settings > Notifications > Telegram**, turn on **Allow Notifications**, a
 
 Open your new bot in Telegram and press **Start** during pairing. Then put Telegram in the background: **lock your iPhone** to test Lock Screen alerts, or **go to the Home Screen** to test Banners. Have your agent send the test.
 
-Expect **🧪 Test from Oura stress alerts. Telegram works.** Confirm that it appears on the lock screen or as an iOS banner while Telegram is in the background. An in-app Telegram banner or a message on the computer does not pass this check. Real stress alerts look like the illustrated example in [README.md](README.md).
+Expect **🧪 Test from Oura stress alerts. Telegram works.** Confirm that it appears on the lock screen or as an iOS banner while Telegram is in the background. An in-app Telegram banner or a message on the computer does not pass this check. Real stress alerts use the wording shown in the real notification capture in [README.md](README.md).
 
 ## After setup
 
@@ -186,15 +186,18 @@ python3 oura_stress_telegram.py settings --min-increase 15
 
 ## Project status
 
-Version 0.2.0 adds experimental native Windows support. Live Windows account setup,
-normal-user installation, logout/login and physical iPhone delivery remain
-untested. Automated Windows checks exercise native file permissions, locking,
+Version 0.2.1 includes a default ring avatar and experimental native Windows
+support. Live Windows account setup, normal-user installation, logout/login and
+Windows-to-phone delivery remain untested. Automated Windows checks exercise native file permissions, locking,
 PowerShell recovery commands and real Task Scheduler registration and execution.
 A fresh nontechnical user's complete agent-led setup is also unverified.
 
-The [two animated demos](docs/DEMOS.md) use synthetic data and simulated screens.
-Their Oura layout and navigation were checked against a supplied reference and the
-mirrored app; they are not recordings of a real notification test.
+On October 11, 2026, a manually triggered alert from the Mac was confirmed on the
+physical iPhone lock screen and captured in a screenshot. The [README demo](docs/DEMOS.md)
+combines that real notification with real Oura screenshots. Cropping, joining the
+graph and total cards across removed controls, labels and transitions were added;
+notification text, graph points and stress totals were not changed.
+It is a screenshot sequence, not a continuous recording or an instant-alert claim.
 
 The October 10, 2026 live macOS run verified fresh-app setup, Telegram delivery,
 both callbacks, background startup, token refresh and lost-response recovery.

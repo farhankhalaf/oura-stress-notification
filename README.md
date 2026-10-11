@@ -9,5 +9,5 @@ Set up https://github.com/fkb032/oura-stress-notification for me.
 ```
 
 <p align="center">
-  <img src="docs/images/demo-realistic.gif" alt="Simulated iPhone demo: a Telegram stress alert arrives, the phone unlocks, and the user opens Oura to see the first high-stress reading at 3 PM. Example data." width="420">
+  <img src="docs/images/demo-real.gif" alt="Real iPhone screenshots: a manually triggered Telegram alert reports 45 minutes of recorded high stress, followed by the Oura graph and selection of an earlier stressed point." width="480">
 </p>

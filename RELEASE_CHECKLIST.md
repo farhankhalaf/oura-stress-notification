@@ -20,15 +20,16 @@ not sufficient for this acceptance check.
   Lock Screen alerts, or go to the Home Screen to test Banners. Confirm the iOS
   notification says "Test from Oura stress alerts. Telegram works." An in-app
   Telegram banner does not pass. Check real-alert wording separately when an
-  actual stress alert arrives. The README image is explicitly illustrative and
-  is not evidence of this real-device check.
+  actual stress alert arrives. The README demo uses real screenshots from one
+  manually triggered alert; it does not replace this person's real-device check.
 - Confirm automatic checks, a simple way to change quiet hours, and a clear way
   to stop the alerts. Record time and assistance rather than estimating them.
 
 **Phone delivery confirmed on 2026-10-11:** Farhan saw the dedicated bot's alert
 in the notification list on his physical iPhone's lock screen, outside Telegram.
-It was manually triggered with a real current Oura reading. A transient banner
-and a recorded demonstration have not been verified. A fresh nontechnical user's
+It was manually triggered with a real current Oura reading. The supplied screenshot
+also verifies the message and ring avatar on the lock screen. A transient banner
+and continuous recording have not been verified. A fresh nontechnical user's
 complete agent-led setup remains untested; this was an assisted existing account.
 
 ## Live run with a fresh Oura application
@@ -62,7 +63,7 @@ complete agent-led setup remains untested; this was an assisted existing account
 |---|---|---|---|---|
 | 2026-10-10 | 0.1.0 | Farhan + Codex | macOS 26.5.2 (arm64) | Passed the tested macOS setup and recovery paths after the live-tested fixes; later review-driven fixes are unit-tested only: fresh app, Telegram pairing/delivery, automatic and pasted callbacks, real stress read, launchd startup, forced refresh and spent-token recovery. 80 tests pass on both local Python versions after follow-up review fixes. Exceptions: assisted existing account without timing; logout/login and revocation await approval; live Linux scheduling not tested. |
 | 2026-10-10 | 0.2.0 | Farhan + Codex | macOS, Linux and Windows CI | 112 tests pass on all seven CI targets, including native Windows permissions, locking, scheduler lifecycle and full scheduler installation with synthetic API responses. Live Windows account setup, standard-user installation, logout/login and phone delivery not performed. Opus 5.5 proposal review: 75 then 87 at the round limit; final code and both GIFs light-reviewed at xhigh: 85. Supported fixes were tested after review, without another model round. Demos use example data. |
-| 2026-10-11 | 0.2.1 | Farhan + Codex | macOS and physical iPhone; Linux/Windows CI | Ring profile picture uploaded, read back and visually verified. The 123-test suite passed both local Python versions and all seven CI targets on 84dc019, with expected platform-specific skips. Farhan confirmed a manually triggered real-data alert in the notification list on the physical iPhone lock screen, outside Telegram. Transient banner and replacement recording remain unverified. Assisted existing account, no fresh-user timing, no natural stress-increase event observed during this check. Earlier live-platform deviations remain. |
+| 2026-10-11 | 0.2.1 | Farhan + Codex | macOS and physical iPhone; Linux/Windows CI | Ring profile picture uploaded, read back and visually verified. The 123-test suite passed both local Python versions and all seven CI targets on 84dc019, with expected platform-specific skips. Farhan confirmed a manually triggered real-data alert on the physical iPhone lock screen, outside Telegram, then supplied screenshot evidence showing the message and avatar. The README GIF now combines cropped real notification and Oura screenshots. Transient banner and continuous recording remain unverified. Assisted existing account, no fresh-user timing, no natural stress-increase event observed during this check. Earlier live-platform deviations remain. |
 
 ### 2026-10-11 physical iPhone delivery
 
@@ -75,9 +76,23 @@ banner or an automatic alert triggered by a newly observed increase.
 The iPhone's Telegram settings already allowed notifications, Lock Screen,
 Notification Center and Banners. No notification preferences were changed.
 iPhone Mirroring did not display the notification in the captured frames, so those
-frames are not evidence of phone delivery. Real Oura graph screenshots were saved
-privately for a future demo, with display overlays restored afterward. The README
-still uses the existing simulation pending an actual notification capture.
+frames are not evidence of phone delivery. The owner then supplied a physical
+iPhone lock-screen screenshot showing the real message, ring avatar and Telegram
+badge. From that screenshot, the public demo uses only the alert notification
+crop; other notifications and personal widgets are excluded.
+
+The replacement README GIF combines that notification with real Oura graph views,
+including Oura's red background when an earlier stressed point is selected. Graph
+and message data are unchanged. App display overlays were restored after capture.
+The animation uses cropped screenshots and crossfades, not a continuous recording;
+see [demo provenance and rebuild instructions](docs/DEMOS.md).
+
+Opus 5.5 reviewed the replacement GIF and documentation in one light-review round
+at requested xhigh effort and reported standard speed, scoring 88/100 with no
+blocking findings. Six low-severity findings were accepted: clearer capture/edit
+provenance, precise notification wording, historical tense, an in-image caption
+for the earlier selected point, and explicit rebuild output/font instructions.
+Those follow-up edits were checked by the host, not sent for a second model round.
 
 ### 2026-10-11 bot picture
 
@@ -87,8 +102,8 @@ to an existing bot, and installation keeps the asset beside the copied program.
 Tests cover multipart JPEG bytes, preserving custom photos, upload errors and
 secret redaction, continued pairing after an image failure, and installed assets.
 The live upload was verified by retrieving Telegram's latest profile image and
-checking the public bot profile. This verifies the avatar, not its placement in an
-iPhone notification. README recording work is still pending.
+checking the public bot profile. Its placement beside the Telegram badge in the
+iPhone notification was subsequently verified in the supplied lock-screen screenshot.
 
 ### 2026-10-10 live run details
 
@@ -181,7 +196,7 @@ model review. No approval score is claimed for them.
 
 ### Distribution guide follow-up
 
-The public README puts a one-line agent setup request above an illustrative
+At that time, the public README put a one-line agent setup request above an illustrative
 iPhone notification with example data. The image has a transparent outer
 background for light and dark themes. Detailed requirements, manual setup,
 troubleshooting and project status live in SETUP.md.
@@ -238,9 +253,9 @@ optimization preserves decoded frames while reducing download size. These host
 fixes have automated and visual checks; they were not sent for another model
 round and do not inherit a new review score.
 
-The [two GIF demos](docs/DEMOS.md) show simulated Telegram delivery, unlocking the
+The [two earlier GIF demos](docs/DEMOS.md#earlier-mockups) show simulated Telegram delivery, unlocking the
 phone, opening Oura, tapping Stress and viewing an example whose first high-stress
 reading is at 3 PM. Their layout was checked against the provided screenshot and
-Oura in iPhone Mirroring. Real personal screenshots and readings are not published.
+Oura in iPhone Mirroring. No real personal screenshots or readings were published in that release.
 The graph overlays were briefly hidden for reference and restored afterward.
 These are visual demonstrations, not evidence of a real phone push test.
