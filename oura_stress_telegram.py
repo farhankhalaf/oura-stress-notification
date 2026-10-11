@@ -44,7 +44,7 @@ from typing import Dict, Iterator, Optional, Tuple
 APP = "oura-stress-telegram"
 VERSION = "0.1.0"
 SCRIPT_NAME = "oura_stress_telegram.py"
-PROJECT_URL = "https://github.com/fkb032/oura-stress-telegram"
+PROJECT_URL = "https://github.com/fkb032/oura-stress-notification"
 
 OURA_APPS_URL = "https://developer.ouraring.com/applications"
 OURA_AUTHORIZE_URL = "https://cloud.ouraring.com/oauth/authorize"
@@ -1250,7 +1250,7 @@ def report_scheduled_run(outcome: Optional[str]) -> None:
     if outcome is None:
         raise AppError("The background job was installed but did not run within a minute. "
                        "Run 'status' in a few minutes; if 'Last background run' stays "
-                       "empty, see Troubleshooting in the README.")
+                       "empty, see Troubleshooting in SETUP.md.")
     if outcome.startswith(("error", "paused", "degraded")):
         raise AppError(f"The background job ran but reported: {outcome}")
     say(f"The scheduler started a check by itself ({outcome}).")
@@ -1261,7 +1261,7 @@ def install_schedule(paths: Paths, config: dict, verify: bool = True) -> None:
     python = python_path()
     system = platform.system()
     if system not in ("Darwin", "Linux"):
-        raise AppError(f"Automatic scheduling is not supported on {system}. See the README.")
+        raise AppError(f"Automatic scheduling is not supported on {system}. See SETUP.md.")
     script = copy_script()
     if verify:
         verify_background_run(paths, python, script)

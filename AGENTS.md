@@ -1,6 +1,6 @@
 # Set up Oura stress alerts for this person
 
-Use this guide for installation or setup requests. For development or review requests, use the README developer section and RELEASE_CHECKLIST.md; do not start account setup or install a background job unless requested.
+Use this guide for installation or setup requests. For development or review requests, use the [SETUP.md developer section](SETUP.md#for-developers) and [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md); do not start account setup or install a background job unless requested.
 
 Assume the person is not a developer. Their request may be only "Set this up" plus the repository URL. Do the technical work yourself and guide them through account steps one at a time. Do not stop at a plan or a list of commands.
 
@@ -25,12 +25,12 @@ Find Python 3.9 or newer by running `python3 --version`. Use its actual path con
 
 If Python is missing, guide the person through the Mac's offered command line developer tools, or a supported Python from python.org. Explain that this is a prerequisite the agent will use, not something they need to learn. For a python.org installation on macOS, run **Install Certificates.command** in that version's Applications/Python folder before setup, as described in the [Python macOS installation guide](https://docs.python.org/3/using/mac.html). Do not claim setup is complete while installation is pending.
 
-Put the project in a permanent folder such as `~/oura-stress-telegram`. If it already exists, inspect and reuse it without overwriting local changes.
+Put the project in a permanent folder such as `~/oura-stress-notification`. If it already exists, inspect and reuse it without overwriting local changes.
 
-- If Git is already available, clone `https://github.com/fkb032/oura-stress-telegram.git` there.
-- If Git is unavailable, download `https://github.com/fkb032/oura-stress-telegram/archive/refs/heads/main.zip` and extract it there using available download/archive tools. The person does not need to install Git.
+- If Git is already available, clone `https://github.com/fkb032/oura-stress-notification.git` there.
+- If Git is unavailable, download `https://github.com/fkb032/oura-stress-notification/archive/refs/heads/main.zip` and extract it there using available download/archive tools. The person does not need to install Git.
 
-Read README.md before continuing. Do not run the release checklist or fault-injection tests during a person's installation.
+Read [SETUP.md](SETUP.md) for requirements and reference before continuing. Do not run the release checklist or fault-injection tests during a person's installation.
 
 ## 2. Start the guided setup
 
@@ -63,9 +63,9 @@ Provide these values so they do not have to invent them:
 | Display Name | `Oura stress alerts` |
 | Description | `Personal Telegram alerts when Oura records more high stress.` |
 | Contact Email | Their own email address |
-| Website | `https://github.com/fkb032/oura-stress-telegram` |
-| Privacy Policy | `https://github.com/fkb032/oura-stress-telegram` |
-| Terms of Service | `https://github.com/fkb032/oura-stress-telegram` |
+| Website | `https://github.com/fkb032/oura-stress-notification` |
+| Privacy Policy | `https://github.com/fkb032/oura-stress-notification` |
+| Terms of Service | `https://github.com/fkb032/oura-stress-notification` |
 | Redirect URIs | `http://localhost:8765/callback` |
 | Scopes | Select **Daily** |
 
@@ -113,7 +113,7 @@ Provide the exact command to stop the job, using the chosen Python and an absolu
 - **No stress data yet:** have them sync the ring through the Oura app. Daytime Stress needs a supported ring, active membership and a few days of wear.
 - **Telegram polling conflict:** create a new dedicated bot; do not stop another program's bot.
 - **Connection works but no schedule exists:** run `install`, then check `status` again. Reconnecting alone does not install automatic checks.
-- **Other failures:** use README troubleshooting. Report the exact safe error and what is still unverified. Do not claim success or invent a provider outage.
+- **Other failures:** use [SETUP.md troubleshooting](SETUP.md#troubleshooting). Report the exact safe error and what is still unverified. Do not claim success or invent a provider outage.
 
 ## Advanced setup, only when needed
 

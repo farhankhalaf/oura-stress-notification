@@ -35,7 +35,7 @@ illustrative README image after that device check.
 1. Register a new application at https://developer.ouraring.com/applications with
    Redirect URI `http://localhost:8765/callback`. Note which fields Oura required.
 2. On a clean user account (or a machine without Python developer tools), follow the
-   README from the start, timing it.
+   README setup request and AGENTS.md from the start, timing it.
 3. Telegram: create a new bot, pair with the code, confirm the message arrives.
 4. Oura: approve in the browser and confirm the automatic return works. Also try the
    paste-the-address fallback once.
@@ -149,9 +149,10 @@ model review. No approval score is claimed for them.
 
 ### Distribution guide follow-up
 
-The public README now leads with a copyable agent setup request, explains the
-account steps in plain language, includes an illustrative iPhone notification
-image with example data, and moves manual terminal setup into an optional section.
+The public README shows an illustrative iPhone notification with example data
+and ends with a one-line agent setup request. The image has a transparent outer
+background for light and dark themes. Detailed requirements, manual setup,
+troubleshooting and project status live in SETUP.md.
 AGENTS.md tells installation agents to perform the technical work, provide exact
 Oura form values, support downloading without Git, and stay until phone delivery
 and automatic checks are verified. This is preparation for the distribution
