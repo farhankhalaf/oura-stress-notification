@@ -19,7 +19,7 @@ You are helping a person, often not technical, set up Oura stress alerts on Tele
 3. **Get the code** into a permanent folder, for example `git clone https://github.com/fkb032/oura-stress-telegram.git ~/oura-stress-telegram`. Avoid temporary folders.
 4. **Explain what is coming**, in plain words:
    - They will create a Telegram bot with @BotFather and send it a pairing code.
-   - They will register a free application at https://developer.ouraring.com/applications with the Redirect URI exactly `http://localhost:8765/callback`, then copy its Client ID and Client Secret.
+   - They will register a free application at https://developer.ouraring.com/applications with the Redirect URI exactly `http://localhost:8765/callback`, select **Daily** under Scopes, then copy its Client ID and Client Secret.
    - They will log in to Oura, turn on **Sleep, readiness, and activity**, then press **Allow**.
 5. **Have them run setup in their own terminal:**
 
@@ -28,8 +28,8 @@ You are helping a person, often not technical, set up Oura stress alerts on Tele
    ```
 
    Stay with them through each prompt. Useful details:
-   - Oura may ask for website, privacy policy or terms links. The project URL `https://github.com/fkb032/oura-stress-telegram` is fine for a personal app.
-   - If the browser shows an error page after Allow, they paste the full address bar URL into the setup window.
+   - Oura will ask for website, privacy policy and terms links. The project URL `https://github.com/fkb032/oura-stress-telegram` is fine for a personal app.
+   - If the localhost return page fails after Allow, they paste the full address bar URL into the setup window.
    - Answer **Y** to background checks. Setup then runs one real background check.
 6. **Verify.** You may run these yourself; they print no secrets:
 

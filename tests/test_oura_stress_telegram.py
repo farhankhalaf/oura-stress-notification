@@ -389,16 +389,29 @@ class TokenTests(Base):
                               {"grant_type": "authorization_code", "code": "bad-code"})
 
     def test_missing_daily_consent_pauses_without_rotating_tokens(self):
-        body = json.dumps({"detail": "Token is not authorized access daily scope."}).encode()
-        for status in (401, 403):
-            with self.subTest(status=status):
-                self.set_state()
-                self.http.stress = [(status, body)]
-                self.assertEqual(self.check(), 1)
-                self.assertTrue(self.state()["needs_reconnect"])
-                self.assertIn("Daily permission was not granted", self.state()["last_error"])
-                self.assertIn("Sleep, readiness, and activity", self.http.sent[-1])
-                self.assertEqual(self.http.token_calls, [])
+        for detail in ("Token is not authorized access daily scope.",
+                       "Token is not authorized to access daily scope."):
+            body = json.dumps({"detail": detail}).encode()
+            for status in (401, 403):
+                with self.subTest(status=status, detail=detail):
+                    self.set_state()
+                    self.http.stress = [(status, body)]
+                    self.assertEqual(self.check(), 1)
+                    self.assertTrue(self.state()["needs_reconnect"])
+                    self.assertIn("Daily permission was not granted", self.state()["last_error"])
+                    self.assertNotIn("Run:", self.state()["last_error"])
+                    self.assertIn("did not grant the Daily permission", self.http.sent[-1])
+                    self.assertIn("Sleep, readiness, and activity", self.http.sent[-1])
+                    self.assertEqual(self.http.token_calls, [])
+
+    def test_missing_daily_reason_survives_notice_delivery_retry(self):
+        self.http.stress = [(401, b'{"detail":"Token is not authorized access daily scope."}')]
+        self.http.telegram_ok = False
+        self.assertEqual(self.check(), 1)
+        self.assertEqual(self.state()["reconnect_reason"], "missing_daily_scope")
+        self.http.telegram_ok = True
+        self.assertEqual(self.check(), 1)
+        self.assertIn("did not grant the Daily permission", self.http.sent[-1])
 
     def test_second_401_needs_reconnect(self):
         self.http.stress = [(401, b"{}")]
@@ -567,6 +580,14 @@ class InstallVerificationTests(Base):
                 ost.record_run(self.paths, time.time(), outcome, run_id)
             return subprocess.CompletedProcess(cmd, code, "", "")
         return run
+
+    def test_paused_install_verification_includes_recovery_command(self):
+        self.set_state(needs_reconnect=True, reconnect_action="connect-oura",
+                       last_error="Oura Daily permission was not granted.")
+        with mock.patch.object(ost, "run", self.fake_child("paused: Oura needs to be reconnected", code=1)):
+            with self.assertRaises(ost.AppError) as caught:
+                ost.verify_background_run(self.paths, "/usr/bin/python3", Path("/s.py"))
+        self.assertIn(ost.command_for("connect-oura", self.paths), str(caught.exception))
 
     def test_verification_passes_only_for_its_own_successful_check(self):
         with mock.patch.object(ost, "run", self.fake_child("ok")):
@@ -772,6 +793,81 @@ class ReviewFixTests(Base):
 
 
 class SetupGuidanceTests(Base):
+    def test_missing_consent_during_setup_points_back_to_setup_and_can_finish(self):
+        self.http.stress = [(401, b'{"detail":"Token is not authorized access daily scope."}')]
+        with mock.patch.object(ost, "default_paths", return_value=self.paths), \
+                mock.patch.object(ost, "setup_telegram"), \
+                mock.patch.object(ost, "setup_oura"), \
+                mock.patch.object(ost, "ask_yes", return_value=True), \
+                mock.patch.object(ost, "install_schedule") as install:
+            self.assertEqual(ost.main(["setup"]), 1)
+            install.assert_not_called()
+            self.assertIn("Your saved Telegram and Oura app keys are kept", self.stdout.getvalue())
+            self.assertIn(ost.command_for("setup", self.paths, prefer_installed=False), self.stdout.getvalue())
+            self.assertNotIn(ost.command_for("connect-oura", self.paths, prefer_installed=False), self.stdout.getvalue())
+            self.http.stress = [(200, stress_body())]
+            self.assertEqual(ost.main(["setup"]), 0)
+            install.assert_called_once()
+
+    def test_reconnect_checks_permission_before_reporting_success(self):
+        self.http.stress = [(401, b'{"detail":"Token is not authorized access daily scope."}')]
+        with mock.patch.object(ost, "default_paths", return_value=self.paths), \
+                mock.patch.object(ost, "wait_for_redirect", return_value="new-code"):
+            self.assertEqual(ost.main(["connect-oura"]), 1)
+        self.assertIn("Daily permission was not granted", self.stdout.getvalue())
+        self.assertIn(ost.command_for("connect-oura", self.paths, prefer_installed=False), self.stdout.getvalue())
+        self.assertNotIn("Oura is connected", self.stdout.getvalue())
+        self.assertNotIn("Oura: connected", self.stdout.getvalue())
+        self.assertTrue(self.state()["needs_reconnect"])
+        self.assertEqual(self.state()["reconnect_reason"], "missing_daily_scope")
+        calls_before_check = len(self.http.calls)
+        self.assertEqual(self.check(), 1)
+        self.assertEqual(len(self.http.calls), calls_before_check)
+        self.assertEqual(self.http.sent, [])
+
+    def test_reconnect_without_schedule_explains_how_to_install(self):
+        self.http.stress = [(200, stress_body())]
+        with mock.patch.object(ost, "default_paths", return_value=self.paths), \
+                mock.patch.object(ost, "wait_for_redirect", return_value="new-code"), \
+                mock.patch.object(ost, "schedule_description", return_value="not installed"):
+            self.assertEqual(ost.main(["connect-oura"]), 0)
+        self.assertIn("Oura: connected", self.stdout.getvalue())
+        self.assertIn("Automatic checks are not installed", self.stdout.getvalue())
+        self.assertIn(ost.command_for("install", self.paths, prefer_installed=False), self.stdout.getvalue())
+
+    def test_rejected_app_keys_during_setup_explain_replacement(self):
+        self.http.token_response = (400, {"error": "invalid_client"})
+        with mock.patch.object(ost, "default_paths", return_value=self.paths), \
+                mock.patch.object(ost, "setup_telegram"), \
+                mock.patch.object(ost, "ask_yes", return_value=True), \
+                mock.patch.object(ost, "wait_for_redirect", return_value="new-code"):
+            self.assertEqual(ost.main(["setup"]), 1)
+        output = self.stdout.getvalue()
+        self.assertIn("answer n", output)
+        self.assertIn("enter the Client ID and Client Secret again", output)
+        self.assertNotIn("app keys are kept", output)
+
+    def test_interactive_setup_recovery_uses_current_source_not_an_old_install(self):
+        installed = Path(self.tmp.name) / "old-installed.py"
+        installed.write_text("# older installed copy\n")
+        with mock.patch.object(ost, "default_paths", return_value=self.paths), \
+                mock.patch.object(ost, "installed_script_path", return_value=installed), \
+                mock.patch.object(ost, "setup_telegram"), \
+                mock.patch.object(ost, "setup_oura", side_effect=ost.ReconnectNeeded("Reconnect")):
+            self.assertEqual(ost.main(["setup"]), 1)
+            self.assertIn(str(installed), ost.command_for("connect-oura", self.paths))
+        self.assertIn(str(Path(ost.__file__).resolve()), self.stdout.getvalue())
+        self.assertNotIn(str(installed), self.stdout.getvalue())
+
+    def test_reconnect_read_outage_reports_that_login_was_saved(self):
+        self.http.stress = [(500, b"{}")]
+        with mock.patch.object(ost, "default_paths", return_value=self.paths), \
+                mock.patch.object(ost, "wait_for_redirect", return_value="new-code"):
+            self.assertEqual(ost.main(["connect-oura"]), 1)
+        self.assertIn("login was saved, but the test read failed", self.stdout.getvalue())
+        self.assertEqual(ost.load_tokens(self.paths)["access_token"], "access-new-123456")
+        self.assertFalse(self.state()["needs_reconnect"])
+
     def test_new_app_setup_uses_current_registration_portal(self):
         config = {}
         with mock.patch.dict(os.environ, {"OURA_CLIENT_ID": "new-client-id",
@@ -782,6 +878,9 @@ class SetupGuidanceTests(Base):
         self.assertIn("https://developer.ouraring.com/applications", output)
         self.assertNotIn("https://cloud.ouraring.com/oauth/applications", output)
         self.assertIn("http://localhost:8765/callback", output)
+        self.assertIn("name, description and contact email", output)
+        self.assertIn("Select Daily under Scopes", output)
+        self.assertIn("Accept the Oura API Agreement", output)
         self.assertNotIn("new-client-secret", output)
         self.assertEqual(ost.load_config(self.paths)["oura_client_id"], "new-client-id")
         connect.assert_called_once_with(self.paths, config)

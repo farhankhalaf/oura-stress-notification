@@ -111,9 +111,10 @@ class ReconnectNeeded(AppError):
     """Oura no longer accepts our login. `action` is the command that fixes it:
     connect-oura for an expired login, setup when the Oura app keys are rejected."""
 
-    def __init__(self, message: str, action: str = "connect-oura"):
+    def __init__(self, message: str, action: str = "connect-oura", reason: Optional[str] = None):
         super().__init__(message)
         self.action = action
+        self.reason = reason
 
 
 class RunTimeout(Exception):
@@ -307,10 +308,10 @@ def default_root() -> Path:
     return (Path.home() / ".config" / APP).resolve()
 
 
-def command_for(action: str, paths: Optional[Paths] = None) -> str:
+def command_for(action: str, paths: Optional[Paths] = None, *, prefer_installed: bool = True) -> str:
     """A command that works from any folder and any shell, preferring the installed copy."""
     script = installed_script_path()
-    if not script.exists():
+    if not prefer_installed or not script.exists():
         script = Path(__file__).resolve()
     command = f"{shlex.quote(python_path())} {shlex.quote(str(script))} {action}"
     root = (paths or default_paths()).root
@@ -509,19 +510,20 @@ class OuraClient:
             if status in (401, 403):
                 detail = (parse_json_body(body) or {}).get("detail")
                 if (isinstance(detail, str)
-                        and "not authorized access daily scope" in detail.lower()):
+                        and re.search(r"\bnot authori[sz]ed (?:to )?access (?:the )?daily scope\b",
+                                      detail, re.IGNORECASE)):
                     raise ReconnectNeeded(
                         "Oura Daily permission was not granted. Reconnect, turn on "
-                        "'Sleep, readiness, and activity', then press Allow. "
-                        f"Run: {command_for('connect-oura', self.paths)}")
+                        "'Sleep, readiness, and activity', then press Allow.",
+                        reason="missing_daily_scope")
             if status == 401 and attempt == 1:
                 continue
             if status == 401:
                 raise ReconnectNeeded("Oura rejected the login even after renewing it")
             if status == 403:
                 raise OuraError("Oura refused access to stress data (HTTP 403). Check that "
-                                "your Oura Membership is active, then reconnect and allow "
-                                "daily data.")
+                                "your Oura Membership is active, then reconnect and turn on "
+                                "'Sleep, readiness, and activity' before pressing Allow.")
             if status == 429:
                 wait = retry_after_seconds(headers)
                 raise RateLimited(f"Oura rate limit reached (HTTP 429); pausing {wait} s", wait)
@@ -599,13 +601,16 @@ def in_quiet_hours(now: dt.time, start: str, end: str) -> bool:
 # One scheduled check
 # --------------------------------------------------------------------------
 
-def reconnect_notice(paths: Paths, action: str = "connect-oura") -> str:
+def reconnect_notice(paths: Paths, action: str = "connect-oura",
+                     reason: Optional[str] = None) -> str:
     what = (f"the saved Oura app keys (check your app at {OURA_APPS_URL}, then enter "
             "its Client ID and Secret again)" if action == "setup" else "the saved login")
     consent = ("\n\nOn the consent screen, turn on 'Sleep, readiness, and activity', "
                "then press Allow." if action == "connect-oura" else "")
-    return ("\u26A0\uFE0F <b>Oura stress alerts are paused:</b> Oura no longer accepts "
-            f"{what}.\n\nTo fix it, run this on your computer:\n"
+    explanation = ("Oura did not grant the Daily permission." if reason == "missing_daily_scope"
+                   else f"Oura no longer accepts {what}.")
+    return (f"\u26A0\uFE0F <b>Oura stress alerts are paused:</b> {explanation}"
+            "\n\nTo fix it, run this on your computer:\n"
             f"<code>{html.escape(command_for(action, paths))}</code>{consent}")
 
 
@@ -694,7 +699,7 @@ def _run_check_locked(paths: Paths, now: Optional[dt.datetime], verify: bool) ->
         if not state.get("reconnect_notice_sent"):
             action = state.get("reconnect_action") or "connect-oura"
             state["reconnect_notice_sent"] = send_telegram(
-                config, reconnect_notice(paths, action), state)
+                config, reconnect_notice(paths, action, state.get("reconnect_reason")), state)
             write_json_private(paths.state, state)
         action = state.get("reconnect_action") or "connect-oura"
         log(f"ERROR: Oura needs to be reconnected. Run: {command_for(action, paths)}")
@@ -711,9 +716,10 @@ def _run_check_locked(paths: Paths, now: Optional[dt.datetime], verify: bool) ->
     except ReconnectNeeded as exc:
         log(f"ERROR: {exc}")
         state.update(needs_reconnect=True, reconnect_action=exc.action,
+                     reconnect_reason=exc.reason,
                      last_error=redact(exc), last_check=now_iso())
         state["reconnect_notice_sent"] = send_telegram(
-            config, reconnect_notice(paths, exc.action), state)
+            config, reconnect_notice(paths, exc.action, exc.reason), state)
         write_json_private(paths.state, state)
         return 1, "paused: Oura needs to be reconnected"
     except RateLimited as exc:
@@ -740,7 +746,7 @@ def _run_check_locked(paths: Paths, now: Optional[dt.datetime], verify: bool) ->
             outcome = "degraded: the Telegram alert failed"
     state.update(last_date=today, last_stress_high=new_baseline, last_check=now_iso(),
                  consecutive_failures=0, failure_alerted=False, last_error=None,
-                 needs_reconnect=False, reconnect_notice_sent=False,
+                 needs_reconnect=False, reconnect_notice_sent=False, reconnect_reason=None,
                  next_oura_request_at=None)
     if stress_high is not None:
         state.update(last_seen_stress_high=stress_high, last_data_day=today)
@@ -1009,8 +1015,9 @@ def wait_for_redirect(port: int, expected_state: str, auth_url: str) -> str:
             webbrowser.open(auth_url)
         say()
         say("Log in to Oura, turn on 'Sleep, readiness, and activity', then press Allow.")
-        say("If the browser then shows an error page,")
-        say("copy the full address from its address bar, paste it here and press Enter.")
+        say("If the localhost return page fails, copy its full address, paste it here")
+        say("and press Enter. If Oura itself shows an error, press Ctrl+C and run")
+        say("this command again to start a fresh authorization request.")
         stdin_open = interactive()
         deadline = time.monotonic() + OAUTH_WAIT_SECONDS
         while not done.is_set():
@@ -1076,9 +1083,8 @@ def connect_oura(paths: Paths, config: dict) -> None:
         write_json_private(paths.tokens, tokens_from_response(payload, time.time()))
         state = load_state(paths)
         state.update(needs_reconnect=False, reconnect_notice_sent=False, last_error=None,
-                     next_oura_request_at=None, reconnect_action=None)
+                     next_oura_request_at=None, reconnect_action=None, reconnect_reason=None)
         write_json_private(paths.state, state)
-    say("Oura is connected.")
 
 
 def setup_oura(paths: Paths, config: dict) -> None:
@@ -1088,11 +1094,13 @@ def setup_oura(paths: Paths, config: dict) -> None:
             and ask_yes("Your Oura app details are already saved. Keep them?"))
     if not keep:
         say(f"1. Open {OURA_APPS_URL} and log in with your Oura account.")
-        say("2. Create a new application. Any name works, for example 'My stress alerts'.")
-        say(f"   If it asks for website, privacy policy or terms links, you can use {PROJECT_URL}")
+        say("2. Create a new application. Enter a name, description and contact email.")
+        say("   For Website, Privacy Policy and Terms of Service, a personal app can use:")
+        say(f"   {PROJECT_URL}")
         say(f"3. Redirect URI must be exactly:  {redirect_uri(port)}")
-        say("4. If it asks which data to allow, include 'daily'.")
-        say("5. Save, then copy the Client ID and Client Secret shown for the app.")
+        say("4. Select Daily under Scopes.")
+        say("5. Accept the Oura API Agreement and create the app.")
+        say("6. Copy the Client ID and Client Secret shown for the app.")
         client_id = os.environ.get("OURA_CLIENT_ID", "").strip()
         if client_id:
             say("Using OURA_CLIENT_ID from the environment.")
@@ -1217,6 +1225,9 @@ def verify_background_run(paths: Paths, python: str, script: Path) -> None:
         detail = (state.get("delivery_error") if outcome.startswith("degraded") else None) \
             or state.get("last_error") or outcome or redact(result.stderr.strip()[-300:]) \
             or "the check did not run"
+        if state.get("needs_reconnect"):
+            action = state.get("reconnect_action") or "connect-oura"
+            detail += f". Run: {command_for(action, paths)}"
         raise AppError(f"The check did not succeed: {detail}")
     say(f"Check worked ({outcome}).")
 
@@ -1395,7 +1406,7 @@ def cmd_setup(paths: Paths, args) -> int:
     if ask_yes("Check automatically in the background from now on?"):
         install_schedule(paths, config)
     else:
-        say(f"Skipped. To start later, run: {command_for('install', paths)}")
+        say(f"Skipped. To start later, run: {command_for('install', paths, prefer_installed=False)}")
     say()
     say("All set. You will get a Telegram message when Oura records new high stress.")
     return 0
@@ -1409,6 +1420,15 @@ def read_stress_now(paths: Paths, config: dict) -> None:
             raise AppError(f"{pause}. Try again after that.")
         try:
             value = read_oura_locked(paths, config, dt.datetime.now().astimezone(), state)
+        except ReconnectNeeded as exc:
+            # Persist the pause under the same lock as the failed read. The
+            # caller shows the actionable error in the terminal, so do not send
+            # another Telegram notice for this same interactive failure.
+            state.update(needs_reconnect=True, reconnect_action=exc.action,
+                         reconnect_reason=exc.reason, reconnect_notice_sent=True,
+                         last_error=redact(exc), last_check=now_iso())
+            write_json_private(paths.state, state)
+            raise
         except RateLimited:
             write_json_private(paths.state, state)
             raise
@@ -1424,6 +1444,15 @@ def cmd_connect_oura(paths: Paths, args) -> int:
     if not config.get("oura_client_id") or not config.get("oura_client_secret"):
         raise AppError(f"Run setup first: {command_for('setup', paths)}")
     connect_oura(paths, config)
+    try:
+        read_stress_now(paths, config)
+    except ReconnectNeeded:
+        raise
+    except (AppError, OSError) as exc:
+        raise AppError(f"Your new Oura login was saved, but the test read failed: {exc}") from None
+    if schedule_description() == "not installed":
+        say("Automatic checks are not installed. To enable them, run:")
+        say(command_for("install", paths, prefer_installed=False))
     return 0
 
 
@@ -1620,6 +1649,17 @@ def main(argv=None) -> int:
     except KeyboardInterrupt:
         say("\nStopped.")
         return 130
+    except ReconnectNeeded as exc:
+        action = "setup" if args.command == "setup" else exc.action
+        report = log if args.command == "check" else say
+        report(f"Problem: {exc}")
+        if exc.action == "setup":
+            report("Run setup again. When it asks to keep your Oura app details, answer n")
+            report("and enter the Client ID and Client Secret again.")
+        elif args.command == "setup":
+            report("Run setup again to finish. Your saved Telegram and Oura app keys are kept.")
+        report(f"Run: {command_for(action, paths, prefer_installed=False)}")
+        return 1
     except (AppError, OSError, subprocess.SubprocessError, RunTimeout) as exc:
         if args.command == "check":
             log(f"ERROR: {exc}")

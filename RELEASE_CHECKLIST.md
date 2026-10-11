@@ -29,7 +29,7 @@ do this once on a real account and record the date and result below.
 
 | Date | Version | Who | Platform | Result |
 |---|---|---|---|---|
-| 2026-10-10 | 0.1.0 | Farhan + Codex | macOS 26.5.2 (arm64) | Passed the tested macOS setup and recovery paths after fixes: fresh app, Telegram pairing/delivery, automatic and pasted callbacks, real stress read, launchd startup, forced refresh and spent-token recovery. 72 tests pass on both local Python versions. Exceptions: assisted existing account without timing; logout/login and revocation await approval; live Linux scheduling not tested. |
+| 2026-10-10 | 0.1.0 | Farhan + Codex | macOS 26.5.2 (arm64) | Passed the tested macOS setup and recovery paths after the live-tested fixes; later review-driven fixes are unit-tested only: fresh app, Telegram pairing/delivery, automatic and pasted callbacks, real stress read, launchd startup, forced refresh and spent-token recovery. 80 tests pass on both local Python versions after follow-up review fixes. Exceptions: assisted existing account without timing; logout/login and revocation await approval; live Linux scheduling not tested. |
 
 ### 2026-10-10 live run details
 
@@ -39,8 +39,9 @@ do this once on a real account and record the date and result below.
   Policy, Terms of Service and Redirect URIs, plus acceptance of the Oura API
   Agreement. The repository URL was accepted for all three website/policy/terms
   fields. Redirect: `http://localhost:8765/callback`. Initially selected only
-  Daily; the app owner later enabled additional app scopes. The tool's OAuth
-  requests remained `scope=daily`, which successfully read daily stress.
+  Daily. The first successful stress read occurred before the app owner enabled
+  additional app scopes, so Daily-only registration was exercised. The tool's
+  OAuth requests remained `scope=daily` throughout.
 - **Step 2, deviation:** an agent assisted on the existing main macOS account,
   with developer tools already installed. No clean-account test or stopwatch
   measurement was performed.
@@ -60,8 +61,7 @@ do this once on a real account and record the date and result below.
 - **Step 6, passed for installation/startup:** answered Y during setup. The
   verification check succeeded, launchd started its own successful check, and
   `status` showed the installed five-minute schedule. After the fixes, reinstalled
-  and verified the scheduler again. The installed script matches the tested
-  source. **Logout/login remains untested:** approval was requested and had not
+  and verified the scheduler again. The installed script matched the source tested at that time (`805ebdd`). **Logout/login remains untested:** approval was requested and had not
   been received during this run.
 - **Step 7, passed:** set `expires_at` to the past under the shared token lock,
   ran `check`, and confirmed a different refresh token, a future expiry and an
@@ -84,10 +84,38 @@ do this once on a real account and record the date and result below.
   had not been received during this run. Revocation remains unverified.
 - **Step 10, not run:** this live run is on macOS. Linux systemd and cron live
   checks remain unverified; cron remains experimental.
-- **Automated checks, passed locally:** all 72 tests using
+- **Automated checks, passed locally:** all 80 tests using
   `/opt/homebrew/bin/python3 -m unittest discover -s tests -v` (Python 3.14.4)
   and `/usr/bin/python3 -m unittest discover -s tests -v` (Python 3.9.6).
   Regression tests cover the observed spent-token response, missing Daily consent
   and the current registration portal.
 
 The tested macOS paths pass. This is not a complete pass of every checklist item.
+
+### Follow-up code review and cleanup
+
+The first Opus 5.5 deep-review round identified a setup recovery gap: a
+missing-permission error pointed to `connect-oura`, which could leave setup
+unfinished without a background job. Setup failures now direct users back to
+`setup`, preserving saved keys and allowing installation to finish. Standalone
+`connect-oura` verifies a real stress read before reporting success and explains
+how to install automatic checks when absent. Consent notices distinguish missing
+permission from an invalid login; the missing-permission response parser accepts
+the observed wording and the grammatical variant with `to access`. Setup prompts
+and troubleshooting now match the verified portal and consent flow. These
+follow-up changes are covered by isolated regression tests; the interactive
+OAuth flow was not repeated after them.
+
+After live validation, the new Mac job was uninstalled to avoid duplicate alerts.
+The job and plist were verified absent, and saved settings and the Oura connection
+were retained for later testing. Uninstall also retains the installed script
+copy. The existing separate monitor was untouched.
+
+The Opus 5.5 review ended at its two-round limit, scoring 85 then 88, rather
+than converging. Host corrections after round two distinguish rejected app keys
+from missing consent, use the running source for interactive recovery commands,
+persist interactive reconnect failures under the read lock, avoid duplicate
+Telegram notices after a terminal error, explain saved logins after temporary
+read failures, and include a recovery command in paused installation failures.
+These final corrections have regression coverage but were not sent for a third
+model review. No approval score is claimed for them.

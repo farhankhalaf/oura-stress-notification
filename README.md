@@ -128,7 +128,8 @@ python3 oura_stress_telegram.py settings --min-increase 15
 | "No stress data for today yet" | Open the Oura app so the ring syncs. Daytime Stress needs Gen3 or later, an active membership and about 5 days of wear. |
 | "Python cannot verify secure connections" | If you installed Python from python.org, open its folder in Applications and run **Install Certificates.command**. |
 | Oura says the redirect URI is invalid | In your Oura application, the Redirect URI must be exactly `http://localhost:8765/callback`. |
-| The browser shows an error page after you press Allow | Copy the full address from the browser's address bar and paste it into the setup window. |
+| The localhost return page fails after you press Allow | Copy the full address from the browser's address bar and paste it into the setup window. |
+| Oura itself shows an error page during sign-in or consent | Press Ctrl+C in the terminal and run the same command again. If the error repeats, check the Client ID and Daily under Scopes, then run setup and enter the app details again. |
 | The pairing code did not reach the bot | Open your bot in Telegram, press Start, then send the code as a normal message. |
 | No alerts at all | Run `status` and look at "Last background run". On a Mac the log is in `~/Library/Logs/oura-stress-telegram.log`. |
 | Linux: checks stop when you log out | Run `loginctl enable-linger $USER`, or answer yes when `install` offers it. |
@@ -142,7 +143,7 @@ python3 oura_stress_telegram.py settings --min-increase 15
 
 ## Project status
 
-Version 0.1.0. Live macOS setup with a fresh Oura application, Telegram delivery, both callback paths, background startup, token refresh and lost-response recovery were tested on October 10, 2026. Automated tests run on macOS and Linux. Untested cases and test deviations, including logout/login, access revocation and live Linux scheduling, are recorded in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). Please [open an issue](https://github.com/fkb032/oura-stress-telegram/issues) if anything is confusing or broken.
+Version 0.1.0. Live macOS setup with a fresh Oura application, Telegram delivery, both callback paths, background startup, token refresh and lost-response recovery were tested on October 10, 2026. The later review-driven recovery fixes are covered by unit tests only; the interactive OAuth flow was not repeated after those changes. Automated tests run on macOS and Linux. Untested cases and test deviations, including logout/login, access revocation and live Linux scheduling, are recorded in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). Please [open an issue](https://github.com/fkb032/oura-stress-telegram/issues) if anything is confusing or broken.
 
 ## For developers
 
