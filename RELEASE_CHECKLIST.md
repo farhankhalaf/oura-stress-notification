@@ -51,12 +51,16 @@ illustrative README image after that device check.
 9. Revoke access in the Oura app or website, confirm the same reconnect path.
 10. Linux (if available): repeat 6 with the systemd timer, and once with cron
     (cron stays labeled experimental until this passes).
+11. Windows: repeat setup, both callback paths, task installation, refresh/reconnect,
+    settings, sign-out/sign-in and uninstall in a normal user session. Verify the
+    iPhone notification independently. Native CI tests do not replace this run.
 
 ## Results
 
 | Date | Version | Who | Platform | Result |
 |---|---|---|---|---|
 | 2026-10-10 | 0.1.0 | Farhan + Codex | macOS 26.5.2 (arm64) | Passed the tested macOS setup and recovery paths after the live-tested fixes; later review-driven fixes are unit-tested only: fresh app, Telegram pairing/delivery, automatic and pasted callbacks, real stress read, launchd startup, forced refresh and spent-token recovery. 80 tests pass on both local Python versions after follow-up review fixes. Exceptions: assisted existing account without timing; logout/login and revocation await approval; live Linux scheduling not tested. |
+| 2026-10-10 | 0.2.0 | Farhan + Codex | macOS, Linux and Windows CI | 112 tests pass on all seven CI targets, including native Windows permissions, locking, scheduler lifecycle and full scheduler installation with synthetic API responses. Live Windows account setup, standard-user installation, logout/login and phone delivery not performed. Opus 5.5 proposal review: 75 then 87 at the round limit; final code and both GIFs light-reviewed at xhigh: 85. Supported fixes were tested after review, without another model round. Demos use example data. |
 
 ### 2026-10-10 live run details
 
@@ -165,3 +169,50 @@ the token, restore the python.org certificate step, classify quiet-hours skips,
 and scope AGENTS.md to installation requests. The iPhone illustration was updated
 to show a lower-screen card with plain preview text. These host changes were
 visually and structurally checked after review, not sent for another model round.
+
+### Windows support and animated demos, 0.2.0
+
+The Windows proposal received two Opus 5.5 deep-review rounds, scoring 75 then 87.
+The review reached its round limit; it did not converge. The implementation uses
+one repeating Task Scheduler trigger, a console interpreter for recovery commands,
+a windowless interpreter for scheduled checks, Windows file locks, private access
+rules, a pre-write Store-runtime check, a soft interrupt deadline and the scheduler's
+hard limit. Native CI tests cover actual Task Scheduler registration and cleanup,
+file permissions, file replacement, callback binding, PowerShell quoting and
+windowless execution, with no Oura or Telegram credentials.
+
+The first Windows CI run found that SDDL can abbreviate the current built-in
+administrator account as LA, and that Task Scheduler omits default XML properties.
+Both were corrected with regression coverage. Older notification assertions were
+updated to accept correctly quoted PowerShell commands, and recovery-command tests
+now use a UTF-8 PowerShell session and compare canonical data paths.
+
+Live Windows account setup, a normal non-administrator's installation, logout/login,
+and physical iPhone delivery remain untested. The user explicitly accepted that
+live Windows setup would not be available for this release. Windows stays labeled
+experimental. CI run 38113955600 passed all seven targets on commit c15e1d9 after the final
+review fixes, with 112 tests discovered per target. Mac/Linux skip the 10 native
+Windows tests; Windows skips 6 POSIX-specific tests. All four Windows versions
+passed a full scheduler installation using synthetic API responses, including
+copying the program, the verification check, registration, read-back, actual
+scheduler execution and cleanup. Windows runners were administrators with
+interactive sessions; this does not establish a standard-user setup.
+
+The final one-round Opus 5.5 light review used the requested xhigh effort and
+reported standard speed. It scored the complete implementation and both GIFs
+85/100, with no blocking findings. Follow-up fixes remove an unverified task
+and identify differing fields after a read-back mismatch, preserve useful status
+and successful reconnect results when scheduler queries fail, and add the full
+native scheduler-install test. Visual fixes add readable caption pills for both
+themes, consistent 12-hour labels, slide/zoom transitions, a clean loop boundary,
+reference-based UI details and a corrected static time axis. Lossless GIF
+optimization preserves decoded frames while reducing download size. These host
+fixes have automated and visual checks; they were not sent for another model
+round and do not inherit a new review score.
+
+The [two GIF demos](docs/DEMOS.md) show simulated Telegram delivery, unlocking the
+phone, opening Oura, tapping Stress and viewing an example whose first high-stress
+reading is at 3 PM. Their layout was checked against the provided screenshot and
+Oura in iPhone Mirroring. Real personal screenshots and readings are not published.
+The graph overlays were briefly hidden for reference and restored afterward.
+These are visual demonstrations, not evidence of a real phone push test.

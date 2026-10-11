@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="1000" viewBox="0 0 760 1000" role="img" aria-labelledby="flow-title flow-desc">
+  <title id="flow-title">Oura records high stress, then a Telegram notification arrives</title>
+  <desc id="flow-desc">Mock example of Daytime Stress with a deep red stressed-state background. The graph first enters Stressed at 3 PM and ends there. A downward arrow labeled After Oura syncs leads to an iPhone-style Telegram notification showing 15 minutes of recorded high stress. Data and appearance are illustrative.</desc>
+  <defs>
+    <linearGradient id="chart-bg" x1="0" y1="0" x2=".65" y2="1">
+      <stop stop-color="#553239"/><stop offset=".5" stop-color="#3c252d"/><stop offset="1" stop-color="#251c23"/>
+    </linearGradient>
+    <linearGradient id="telegram-icon" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#4ebff0"/><stop offset="1" stop-color="#2489cb"/>
+    </linearGradient>
+    <linearGradient id="notification-glass" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#f1f4f1"/><stop offset="1" stop-color="#dce5e1"/>
+    </linearGradient>
+    <filter id="card-shadow" x="-10%" y="-20%" width="120%" height="150%"><feDropShadow dx="0" dy="7" stdDeviation="10" flood-color="#101818" flood-opacity=".13"/></filter>
+  </defs>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif">
+    <g transform="translate(33 -45)">
+    <rect x="8" y="76" width="678" height="662" rx="28" fill="url(#chart-bg)"/>
+    <text x="46" y="133" fill="#f4ece8" font-size="32" font-weight="500">Daytime Stress</text>
+    <rect x="549" y="105" width="99" height="32" rx="16" fill="#ffffff" fill-opacity=".08"/>
+    <text x="598" y="127" text-anchor="middle" fill="#b7b6bd" font-size="15" letter-spacing="1.4">EXAMPLE</text>
+    <text x="46" y="181" fill="#ece4df" font-size="23">Today</text>
+    <text x="648" y="181" text-anchor="end" fill="#bcb9c1" font-size="20">First high stress at 3 PM</text>
+    <g stroke="#ffffff" stroke-opacity=".16" stroke-width="1">
+      <path d="M46 217 H648 M46 317.38 H648 M46 417 H648 M46 518.14 H648 M46 630 H648"/>
+    </g>
+    <g fill="#bcb7b6" font-size="21" text-anchor="end">
+      <text x="648" y="265">Stressed</text><text x="648" y="367">Engaged</text>
+      <text x="648" y="477">Relaxed</text><text x="648" y="587">Restored</text>
+    </g>
+    <polyline points="52.00,589.39 69.56,486.71 87.11,449.94 104.67,521.19 122.22,456.83 139.78,429.25 157.33,467.56 174.89,552.61" fill="none" stroke="#d7c7c4" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/><path d="M174.89 552.61 L210.00 495.91" stroke="#d7c7c4" stroke-width="2.6" stroke-dasharray="1 8" stroke-linecap="round"/><polyline points="210.00,495.91 227.56,409.32 245.11,439.21 262.67,478.29 280.22,443.81 297.78,388.64 315.33,414.69 332.89,489.01 350.44,534.22 368.00,477.52 385.56,441.51 403.11,379.44 420.67,360.29 438.22,425.42 455.78,460.66 473.33,378.68 490.89,364.12 508.44,401.66 526.00,292.09" fill="none" stroke="#d7c7c4" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/><circle cx="52.00" cy="589.39" r="4.8" fill="#f6eae4"/><circle cx="69.56" cy="486.71" r="4.8" fill="#f6eae4"/><circle cx="87.11" cy="449.94" r="4.8" fill="#f6eae4"/><circle cx="104.67" cy="521.19" r="4.8" fill="#f6eae4"/><circle cx="122.22" cy="456.83" r="4.8" fill="#f6eae4"/><circle cx="139.78" cy="429.25" r="4.8" fill="#f6eae4"/><circle cx="157.33" cy="467.56" r="4.8" fill="#f6eae4"/><circle cx="174.89" cy="552.61" r="4.8" fill="#f6eae4"/><circle cx="210.00" cy="495.91" r="4.8" fill="#f6eae4"/><circle cx="227.56" cy="409.32" r="4.8" fill="#f6eae4"/><circle cx="245.11" cy="439.21" r="4.8" fill="#f6eae4"/><circle cx="262.67" cy="478.29" r="4.8" fill="#f6eae4"/><circle cx="280.22" cy="443.81" r="4.8" fill="#f6eae4"/><circle cx="297.78" cy="388.64" r="4.8" fill="#f6eae4"/><circle cx="315.33" cy="414.69" r="4.8" fill="#f6eae4"/><circle cx="332.89" cy="489.01" r="4.8" fill="#f6eae4"/><circle cx="350.44" cy="534.22" r="4.8" fill="#f6eae4"/><circle cx="368.00" cy="477.52" r="4.8" fill="#f6eae4"/><circle cx="385.56" cy="441.51" r="4.8" fill="#f6eae4"/><circle cx="403.11" cy="379.44" r="4.8" fill="#f6eae4"/><circle cx="420.67" cy="360.29" r="4.8" fill="#f6eae4"/><circle cx="438.22" cy="425.42" r="4.8" fill="#f6eae4"/><circle cx="455.78" cy="460.66" r="4.8" fill="#f6eae4"/><circle cx="473.33" cy="378.68" r="4.8" fill="#f6eae4"/><circle cx="490.89" cy="364.12" r="4.8" fill="#f6eae4"/><circle cx="508.44" cy="401.66" r="4.8" fill="#f6eae4"/><circle cx="526.00" cy="292.09" r="4.8" fill="#f6eae4"/>
+    <g fill="#bcb7b6" font-size="20">
+      <text x="52" y="677">8:15 AM</text><text x="315.33" y="677" text-anchor="middle">12 PM</text>
+      <text x="526" y="677" text-anchor="middle" fill="#ec9b90">3 PM</text>
+    </g>
+
+    </g>
+    <path d="M380 714 V757 M370 747 L380 757 L390 747" fill="none" stroke="#94a39e" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="400" y="718" width="181" height="37" rx="18" fill="#234539"/><text x="490.5" y="743" text-anchor="middle" fill="#eff5ef" font-size="18">After Oura syncs</text>
+    <g filter="url(#card-shadow)">
+      <rect x="41" y="789" width="678" height="174" rx="29" fill="url(#notification-glass)"/>
+    </g>
+    <rect x="65" y="817" width="57" height="57" rx="15" fill="url(#telegram-icon)"/>
+    <path d="M75 844 L112 829 Q116 827 115 832 L109 864 Q108 868 105 865 L95 856 L90 862 Q87 865 87 859 L89 849 L106 836 L84 847Z" fill="#fff"/>
+    <text x="139" y="843" fill="#1d2926" font-size="25" font-weight="700">Oura Stress Alerts</text>
+    <text x="693" y="843" fill="#738079" font-size="20" text-anchor="end">now</text>
+    <circle cx="146" cy="878" r="7.5" fill="#d45c53"/>
+    <text x="165" y="886" fill="#26312e" font-size="23">Oura recorded high stress: 15 min today.</text>
+    <text x="139" y="922" fill="#35413c" font-size="22">Your body has been showing physiological stress…</text>
+  </g>
+</svg>

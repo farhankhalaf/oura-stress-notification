@@ -4,12 +4,17 @@
 Checks your Oura ring's daytime stress every few minutes and sends you a Telegram
 message when Oura records more time in high stress today.
 
-Standard library only, Python 3.9 or newer, macOS or Linux.
+Standard library only, Python 3.9 or newer, macOS, Linux or Windows (experimental).
 First run:  python3 oura_stress_telegram.py setup
 """
 from __future__ import annotations
 
 import argparse
+import _thread
+import ctypes
+from ctypes import wintypes
+import errno
+import functools
 import base64
 import contextlib
 import datetime as dt
@@ -38,11 +43,12 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Dict, Iterator, Optional, Tuple
 
 APP = "oura-stress-telegram"
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 SCRIPT_NAME = "oura_stress_telegram.py"
 PROJECT_URL = "https://github.com/fkb032/oura-stress-notification"
 
@@ -165,21 +171,263 @@ class Paths:
         self.last_run = root / "last_run.json"
 
 
+def is_windows() -> bool:
+    return os.name == "nt"
+
+
+@functools.lru_cache(maxsize=1)
+def _windows_api():
+    """Typed Win32 entry points, loaded only by native Windows calls."""
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    advapi = ctypes.WinDLL("advapi32", use_last_error=True)
+    void = ctypes.c_void_p
+    pointer = ctypes.POINTER
+    signatures = [
+        (kernel, "GetCurrentProcess", [], wintypes.HANDLE),
+        (kernel, "CloseHandle", [wintypes.HANDLE], wintypes.BOOL),
+        (kernel, "LocalFree", [void], void),
+        (kernel, "CreateDirectoryW", [wintypes.LPCWSTR, void], wintypes.BOOL),
+        (kernel, "GetConsoleMode", [wintypes.HANDLE, pointer(wintypes.DWORD)], wintypes.BOOL),
+        (advapi, "OpenProcessToken", [wintypes.HANDLE, wintypes.DWORD,
+                                      pointer(wintypes.HANDLE)], wintypes.BOOL),
+        (advapi, "GetTokenInformation", [wintypes.HANDLE, ctypes.c_int, void,
+                                         wintypes.DWORD, pointer(wintypes.DWORD)], wintypes.BOOL),
+        (advapi, "ConvertSidToStringSidW", [void, pointer(wintypes.LPWSTR)], wintypes.BOOL),
+        (advapi, "ConvertStringSecurityDescriptorToSecurityDescriptorW",
+         [wintypes.LPCWSTR, wintypes.DWORD, pointer(void), pointer(wintypes.DWORD)], wintypes.BOOL),
+        (advapi, "ConvertSecurityDescriptorToStringSecurityDescriptorW",
+         [void, wintypes.DWORD, wintypes.DWORD, pointer(wintypes.LPWSTR),
+          pointer(wintypes.DWORD)], wintypes.BOOL),
+        (advapi, "GetNamedSecurityInfoW", [wintypes.LPCWSTR, ctypes.c_int, wintypes.DWORD,
+                                          pointer(void), pointer(void), pointer(void),
+                                          pointer(void), pointer(void)], wintypes.DWORD),
+        (advapi, "GetSecurityDescriptorDacl", [void, pointer(wintypes.BOOL), pointer(void),
+                                               pointer(wintypes.BOOL)], wintypes.BOOL),
+        (advapi, "SetNamedSecurityInfoW", [wintypes.LPWSTR, ctypes.c_int, wintypes.DWORD,
+                                          void, void, void, void], wintypes.DWORD),
+    ]
+    for library, name, args, result in signatures:
+        function = getattr(library, name)
+        function.argtypes, function.restype = args, result
+    return kernel, advapi
+
+
+@functools.lru_cache(maxsize=1)
+def windows_user_sid() -> str:
+    kernel, advapi = _windows_api()
+    token = wintypes.HANDLE()
+    if not advapi.OpenProcessToken(kernel.GetCurrentProcess(), 0x0008, ctypes.byref(token)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        size = wintypes.DWORD()
+        advapi.GetTokenInformation(token, 1, None, 0, ctypes.byref(size))  # TokenUser
+        if not size.value:
+            raise ctypes.WinError(ctypes.get_last_error())
+        buffer = ctypes.create_string_buffer(size.value)
+        if not advapi.GetTokenInformation(token, 1, buffer, size, ctypes.byref(size)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        sid = ctypes.cast(buffer, ctypes.POINTER(ctypes.c_void_p))[0]
+        text = wintypes.LPWSTR()
+        if not advapi.ConvertSidToStringSidW(sid, ctypes.byref(text)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            return text.value
+        finally:
+            kernel.LocalFree(text)
+    finally:
+        kernel.CloseHandle(token)
+
+
+def windows_acl(path: Path) -> str:
+    kernel, advapi = _windows_api()
+    descriptor = ctypes.c_void_p()
+    error = advapi.GetNamedSecurityInfoW(str(path), 1, 4, None, None, None, None,
+                                         ctypes.byref(descriptor))
+    if error:
+        raise ctypes.WinError(error)
+    try:
+        text = wintypes.LPWSTR()
+        if not advapi.ConvertSecurityDescriptorToStringSecurityDescriptorW(
+                descriptor, 1, 4, ctypes.byref(text), None):
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            return text.value
+        finally:
+            kernel.LocalFree(text)
+    finally:
+        kernel.LocalFree(descriptor)
+
+
+def private_windows_acl(sddl: str, sid: str) -> bool:
+    """Allow only the user, SYSTEM and local administrators; require usable access."""
+    allowed = {sid, "SY", "BA", "S-1-5-18", "S-1-5-32-544"}
+    aces = re.findall(r"\(([^()]*)\)", sddl)
+    user_access = False
+    if not sddl.startswith("D:") or not aces:
+        return False
+    for ace in aces:
+        fields = ace.split(";")
+        if len(fields) != 6 or fields[0] not in ("A", "D"):
+            return False  # Do not guess the meaning of conditional/object ACEs.
+        kind, flags, rights, _, _, principal = fields
+        # SDDL abbreviates the built-in local Administrator/Guest account SIDs.
+        # Accept the alias only when it identifies this exact current user.
+        if (principal == "LA" and sid.endswith("-500")) or (principal == "LG" and sid.endswith("-501")):
+            principal = sid
+        if kind == "D":
+            continue
+        if principal not in allowed:
+            return False
+        if principal == sid and "IO" not in flags:
+            full = rights == "FA"
+            if rights.startswith("0x"):
+                with contextlib.suppress(ValueError):
+                    full = int(rights, 16) & 0x1F01FF == 0x1F01FF
+            user_access = user_access or full
+    return user_access
+
+
+@contextlib.contextmanager
+def _windows_descriptor(directory: bool):
+    kernel, advapi = _windows_api()
+    flags = "OICI" if directory else ""
+    sddl = "D:P" + "".join(f"(A;{flags};FA;;;{sid})"
+                            for sid in (windows_user_sid(), "SY", "BA"))
+    descriptor = ctypes.c_void_p()
+    if not advapi.ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            sddl, 1, ctypes.byref(descriptor), None):
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        yield descriptor
+    finally:
+        kernel.LocalFree(descriptor)
+
+
+def _windows_set_private(path: Path, directory: bool) -> None:
+    _, advapi = _windows_api()
+    with _windows_descriptor(directory) as descriptor:
+        present, defaulted, acl = wintypes.BOOL(), wintypes.BOOL(), ctypes.c_void_p()
+        if not advapi.GetSecurityDescriptorDacl(descriptor, ctypes.byref(present),
+                                                ctypes.byref(acl), ctypes.byref(defaulted)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        error = advapi.SetNamedSecurityInfoW(str(path), 1, 4 | 0x80000000,
+                                             None, None, acl, None)
+        if error:
+            raise ctypes.WinError(error)
+
+
+def owned_data_name(name: str) -> bool:
+    return name in OWNED_DATA_FILES or name == "lock" or any(
+        name.startswith(f".{item}.") and name.endswith(".tmp") for item in OWNED_DATA_FILES)
+
+
+def ensure_windows_private_dir(path: Path) -> None:
+    """Provision a private leaf atomically; never rewrite an unrelated directory tree."""
+    kernel, _ = _windows_api()
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        class SecurityAttributes(ctypes.Structure):
+            _fields_ = [("length", wintypes.DWORD), ("descriptor", ctypes.c_void_p),
+                        ("inherit", wintypes.BOOL)]
+
+        with _windows_descriptor(True) as descriptor:
+            attributes = SecurityAttributes(ctypes.sizeof(SecurityAttributes), descriptor, False)
+            if not kernel.CreateDirectoryW(str(path), ctypes.byref(attributes)):
+                error = ctypes.get_last_error()
+                if error != 183 or not path.is_dir():
+                    raise ctypes.WinError(error)
+    if not path.is_dir() or path.is_symlink():
+        raise AppError(f"Use a dedicated local folder for saved settings: {path}")
+    sid = windows_user_sid()
+    if not private_windows_acl(windows_acl(path), sid):
+        entries = list(path.iterdir())
+        if any(not child.is_file() or child.is_symlink()
+               or not (owned_data_name(child.name) or child.name == SCRIPT_NAME)
+               for child in entries):
+            raise AppError(f"Cannot make {path} private without changing unrelated files. "
+                           "Choose a new empty local folder with --data-dir.")
+        _windows_set_private(path, True)
+        if not private_windows_acl(windows_acl(path), sid):
+            raise AppError("Windows could not protect the settings folder. Use a local NTFS folder.")
+
+
+def protect_windows_file(path: Path) -> None:
+    if path.exists() and not private_windows_acl(windows_acl(path), windows_user_sid()):
+        _windows_set_private(path, False)
+        if not private_windows_acl(windows_acl(path), windows_user_sid()):
+            raise AppError(f"Windows could not protect {path}. Use a local NTFS folder.")
+
+
+def windows_local_dir() -> Path:
+    value = os.environ.get("LOCALAPPDATA")
+    return Path(value) if value else Path.home() / "AppData" / "Local"
+
+
+def powershell_quote(value: str) -> str:
+    # PowerShell also recognizes these typographic characters as single quotes.
+    return "'" + re.sub("['\u2018\u2019\u201a\u201b]", lambda m: m[0] * 2, value) + "'"
+
+
+def windows_cleanup_command(root: Path) -> str:
+    paths = [powershell_quote(str(root / name)) for name in OWNED_DATA_FILES]
+    return "Remove-Item -LiteralPath " + ", ".join(paths) + " -Force -ErrorAction SilentlyContinue"
+
+
+def windows_runtime_check(paths: Paths) -> None:
+    """Reject Store package virtualization before setup can save any credentials."""
+    prefixes = (sys.executable, sys.prefix, sys.base_prefix)
+    root = str(paths.root.resolve())
+    store = any("windowsapps" in re.split(r"[\\/]", str(p).lower()) for p in prefixes)
+    cache = "\\packages\\" in root.lower() and "\\localcache\\" in root.lower()
+    if store or cache:
+        raise AppError("This Microsoft Store Python or private package folder cannot be used "
+                       "for background checks. Install a runtime with the Python install "
+                       "manager from python.org and run setup with that runtime. "
+                       "To remove saved files from the displayed folder in PowerShell: "
+                       + windows_cleanup_command(Path(root)))
+    legacy = Path.home() / ".config" / APP
+    if paths.root == default_root() and not paths.config.exists() and (legacy / "config.json").exists():
+        raise AppError("Saved settings exist in the old folder. Reuse them with: "
+                       + command_for("setup", Paths(legacy), prefer_installed=False)
+                       + ". Or remove those saved files in PowerShell: "
+                       + windows_cleanup_command(legacy.resolve()))
+
+
+def replace_private_file(source: str, target: Path) -> None:
+    deadline = time.monotonic() + 1
+    while True:
+        try:
+            os.replace(source, target)
+            return
+        except PermissionError:
+            if not is_windows() or time.monotonic() >= deadline:
+                raise
+            time.sleep(0.05)
+
+
 def default_paths() -> Paths:
     override = os.environ.get("OURA_STRESS_HOME")
     if override:
         return Paths(Path(override).expanduser().resolve())
+    if is_windows():
+        return Paths(default_root())
     base = os.environ.get("XDG_CONFIG_HOME") or "~/.config"
     return Paths((Path(base).expanduser() / APP).resolve())
 
 
 def ensure_private_dir(path: Path) -> None:
-    path.mkdir(mode=0o700, parents=True, exist_ok=True)
-    os.chmod(path, 0o700)
+    if is_windows():
+        ensure_windows_private_dir(path)
+    else:
+        path.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(path, 0o700)
 
 
 def read_json(path: Path) -> dict:
     try:
+        if is_windows():
+            protect_windows_file(path)
         with open(path, encoding="utf-8") as handle:
             value = json.load(handle)
     except FileNotFoundError:
@@ -196,23 +444,29 @@ def write_json_private(path: Path, data: dict) -> None:
     ensure_private_dir(path.parent)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
-        os.fchmod(fd, 0o600)
+        if is_windows():
+            protect_windows_file(Path(tmp))
+        else:
+            os.fchmod(fd, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            fd = -1  # fdopen now owns and closes the descriptor on every exit.
             json.dump(data, handle, indent=2, sort_keys=True)
             handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(tmp, path)
-    except BaseException:
+        replace_private_file(tmp, path)
+    finally:
+        if fd != -1:
+            os.close(fd)
         with contextlib.suppress(FileNotFoundError):
             os.unlink(tmp)
-        raise
-    with contextlib.suppress(OSError):
-        dir_fd = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(dir_fd)
-        finally:
-            os.close(dir_fd)
+    if not is_windows():
+        with contextlib.suppress(OSError):
+            dir_fd = os.open(path.parent, os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
 
 
 @contextlib.contextmanager
@@ -223,26 +477,49 @@ def run_lock(paths: Paths, wait_seconds: float = 0) -> Iterator[bool]:
     process holds it; otherwise it retries until the wait runs out.
     """
     ensure_private_dir(paths.root)
-    try:
-        import fcntl
-    except ImportError:  # Not POSIX: run without a lock.
-        yield True
-        return
-    handle = open(paths.lock, "a")
+    if is_windows():
+        import msvcrt
+    else:
+        try:
+            import fcntl
+        except ImportError:
+            raise AppError("This platform has no supported file lock.") from None
+    handle = open(paths.lock, "a+b")
+    held = False
     try:
         deadline = time.monotonic() + wait_seconds
         while True:
             try:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                if is_windows():
+                    handle.seek(0)
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                held = True
                 break
-            except OSError:
+            except OSError as exc:
+                if exc.errno not in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+                    raise
                 if time.monotonic() >= deadline:
                     yield False
                     return
                 time.sleep(0.25)
+        if is_windows():
+            # Token writers all hold this lock. Do not sweep config/receipt temps:
+            # those can legitimately be in use by another command.
+            for stale in paths.root.glob(".tokens.json.*.tmp"):
+                with contextlib.suppress(OSError):
+                    stale.unlink()
         yield True
     finally:
-        handle.close()
+        if held and is_windows():
+            handle.seek(0)
+            try:
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            finally:
+                handle.close()
+        else:
+            handle.close()
 
 
 @contextlib.contextmanager
@@ -286,6 +563,8 @@ def settings_of(config: dict) -> dict:
 # --------------------------------------------------------------------------
 
 def installed_script_path() -> Path:
+    if is_windows():
+        return windows_local_dir() / (APP + "-app") / SCRIPT_NAME
     return Path.home() / ".local" / "share" / APP / SCRIPT_NAME
 
 
@@ -297,6 +576,11 @@ def python_path() -> str:
     /usr/bin/python3 shim, which survives Xcode and Command Line Tools updates.
     """
     exe = os.path.abspath(sys.executable or shutil.which("python3") or "/usr/bin/python3")
+    if is_windows():
+        path = Path(exe)
+        if path.name.lower() == "pythonw.exe":
+            path = path.with_name("python.exe")
+        return str(path)
     apple = ("/Library/Developer/CommandLineTools/" in exe
              or (".app/Contents/Developer/" in exe and "Xcode" in exe))
     if apple and os.access("/usr/bin/python3", os.X_OK):
@@ -305,14 +589,20 @@ def python_path() -> str:
 
 
 def default_root() -> Path:
+    if is_windows():
+        return (windows_local_dir() / APP).resolve()
     return (Path.home() / ".config" / APP).resolve()
 
 
 def command_for(action: str, paths: Optional[Paths] = None, *, prefer_installed: bool = True) -> str:
-    """A command that works from any folder and any shell, preferring the installed copy."""
+    """An absolute command for POSIX shells or Windows PowerShell."""
     script = installed_script_path()
     if not prefer_installed or not script.exists():
         script = Path(__file__).resolve()
+    if is_windows():
+        root = (paths or default_paths()).root
+        return "& " + " ".join(powershell_quote(str(value)) for value in
+                                (python_path(), script, "--data-dir", root, action))
     command = f"{shlex.quote(python_path())} {shlex.quote(str(script))} {action}"
     root = (paths or default_paths()).root
     if root != default_root():
@@ -351,6 +641,12 @@ def http_request(method: str, url: str, *, data: Optional[bytes] = None,
         reason = str(getattr(exc, "reason", exc)) or type(exc).__name__
         host = urllib.parse.urlsplit(url).hostname
         if "CERTIFICATE_VERIFY_FAILED" in reason:
+            if is_windows():
+                raise NetworkError("Python cannot verify secure connections. Check the "
+                                   "Windows date and time, install Windows Update certificate "
+                                   "updates, then try again. On a managed computer, ask its "
+                                   "administrator about the trusted certificate store. "
+                                   "Do not turn off certificate verification.") from None
             raise NetworkError(
                 "Python cannot verify secure connections on this computer. If you "
                 "installed Python from python.org, open its folder in Applications and "
@@ -777,10 +1073,101 @@ def _raise_timeout(signum, frame):
 
 
 @contextlib.contextmanager
-def time_limit(seconds: int) -> Iterator[None]:
-    if not hasattr(signal, "SIGALRM"):
+def windows_time_limit(seconds: int) -> Iterator[None]:
+    """Soft deadline: Windows delivers the interrupt after blocking native work."""
+    previous = signal.getsignal(signal.SIGINT)
+    expired, disarmed = threading.Event(), threading.Event()
+
+    def interrupt():
+        if not disarmed.is_set():
+            expired.set()
+            _thread.interrupt_main()
+
+    def handle_interrupt(signum, frame):
+        if disarmed.is_set():
+            return
+        if expired.is_set():
+            _raise_timeout(signum, frame)
+        if callable(previous):
+            previous(signum, frame)
+        elif previous != signal.SIG_IGN:
+            raise KeyboardInterrupt
+
+    timer = threading.Timer(seconds, interrupt)
+    timer.daemon = True
+    signal.signal(signal.SIGINT, handle_interrupt)
+    timer.start()
+    try:
         yield
+    finally:
+        # Drain a pending timer interrupt while our disarmed handler still owns it.
+        disarmed.set()
+        timer.cancel()
+        timer.join()
+        expired.is_set()
+        signal.signal(signal.SIGINT, previous)
+
+
+def windows_console_available() -> bool:
+    if sys.stdin is None:
+        return False
+    try:
+        import msvcrt
+        kernel, _ = _windows_api()
+        mode = wintypes.DWORD()
+        return bool(kernel.GetConsoleMode(msvcrt.get_osfhandle(sys.stdin.fileno()),
+                                          ctypes.byref(mode)))
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
+class WindowsConsoleLine:
+    """Poll hidden paste input without a thread that outlives the OAuth prompt."""
+    def __init__(self):
+        self.characters = []
+        self.extended = False
+
+    def poll(self) -> Optional[str]:
+        import msvcrt
+        for _ in range(8192):
+            if not msvcrt.kbhit():
+                return None
+            character = msvcrt.getwch()
+            if self.extended:
+                self.extended = False
+            elif character in ("\x00", "\xe0"):
+                self.extended = True
+            elif character == "\x03":
+                raise KeyboardInterrupt
+            elif character in ("\r", "\n"):
+                line = "".join(self.characters)
+                self.characters.clear()
+                return line
+            elif character == "\b":
+                if self.characters:
+                    self.characters.pop()
+            elif character.isprintable():
+                self.characters.append(character)
+                if len(self.characters) > 8192:
+                    self.characters.clear()
+                    raise AppError("The pasted address is too long. Run the command again.")
+        return None
+
+    def discard(self) -> None:
+        import msvcrt
+        self.characters.clear()
+        while msvcrt.kbhit():
+            msvcrt.getwch()
+
+
+@contextlib.contextmanager
+def time_limit(seconds: int) -> Iterator[None]:
+    if is_windows():
+        with windows_time_limit(seconds):
+            yield
         return
+    if not hasattr(signal, "SIGALRM"):
+        raise AppError("This platform has no supported check timeout.")
     previous = signal.signal(signal.SIGALRM, _raise_timeout)
     signal.alarm(seconds)
     try:
@@ -795,7 +1182,8 @@ def time_limit(seconds: int) -> Iterator[None]:
 # --------------------------------------------------------------------------
 
 def interactive() -> bool:
-    return sys.stdin.isatty()
+    return (windows_console_available() if is_windows() else
+            sys.stdin is not None and sys.stdin.isatty())
 
 
 def ask(prompt: str, default: Optional[str] = None) -> str:
@@ -925,7 +1313,7 @@ def setup_telegram(config: dict) -> None:
 # --------------------------------------------------------------------------
 
 class _CallbackServer(http.server.ThreadingHTTPServer):
-    allow_reuse_address = True
+    allow_reuse_address = not is_windows()
     daemon_threads = True
     block_on_close = False  # an idle browser connection must not block shutdown
 
@@ -1003,6 +1391,7 @@ def start_callback_servers(port: int, handler) -> list:
 
 def wait_for_redirect(port: int, expected_state: str, auth_url: str) -> str:
     result: dict = {}
+    console = None
     done = threading.Event()
     servers = start_callback_servers(port, _callback_handler(expected_state, result, done))
     try:
@@ -1019,29 +1408,39 @@ def wait_for_redirect(port: int, expected_state: str, auth_url: str) -> str:
         say("and press Enter. If Oura itself shows an error, press Ctrl+C and run")
         say("this command again to start a fresh authorization request.")
         stdin_open = interactive()
+        console = WindowsConsoleLine() if is_windows() and stdin_open else None
+        if console:
+            say("The pasted address is hidden while you type or paste it. Press Enter once.")
         deadline = time.monotonic() + OAUTH_WAIT_SECONDS
         while not done.is_set():
             if time.monotonic() > deadline:
                 raise AppError("Timed out waiting for Oura. Run the command again.")
-            if stdin_open:
+            line = None
+            if console:
+                line = console.poll()
+                if line is None:
+                    done.wait(0.05)
+            elif stdin_open:
                 ready, _, _ = select.select([sys.stdin], [], [], 0.5)
                 if ready:
                     line = sys.stdin.readline()
                     if not line:
                         stdin_open = False
-                    elif line.strip():
-                        query = urllib.parse.urlsplit(line.strip()).query
-                        outcome = handle_redirect_query(query, expected_state)
-                        if outcome.get("code"):
-                            return outcome["code"]
-                        say(outcome["error"])
             else:
                 done.wait(0.5)
+            if line and line.strip():
+                query = urllib.parse.urlsplit(line.strip()).query
+                outcome = handle_redirect_query(query, expected_state)
+                if outcome.get("code"):
+                    return outcome["code"]
+                say(outcome["error"])
             error = result.pop("error", None)
             if error and not done.is_set():
                 say(error)
         return result["code"]
     finally:
+        if console:
+            console.discard()
         for server in servers:
             server.shutdown()
             server.server_close()
@@ -1119,6 +1518,274 @@ def setup_oura(paths: Paths, config: dict) -> None:
 # Background schedule
 # --------------------------------------------------------------------------
 
+WINDOWS_TASK_SOURCE = "https://github.com/fkb032/oura-stress-notification"
+WINDOWS_TASK_LIMIT_SECONDS = 600
+TASK_XML_NAMESPACE = "http://schemas.microsoft.com/windows/2004/02/mit/task"
+
+# The program is fixed. All variable data travels as JSON, never as executable code.
+WINDOWS_TASK_SCRIPT = r"""
+$ErrorActionPreference = 'Stop'
+[Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+try {
+    $p = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    $service = New-Object -ComObject 'Schedule.Service'
+    $service.Connect()
+    $folder = $service.GetFolder('\')
+    $task = $null
+    try { $task = $folder.GetTask([string]$p.name) }
+    catch {
+        $e = $_.Exception
+        while ($e.InnerException) { $e = $e.InnerException }
+        if ($e.HResult -ne -2147024894) { throw }
+    }
+    if ($task -and $task.Definition.RegistrationInfo.Source -ne [string]$p.source) {
+        throw 'A different program owns this task name. No task was changed.'
+    }
+    switch ([string]$p.operation) {
+        'register' {
+            $task = $folder.RegisterTask([string]$p.name, [string]$p.xml, 6,
+                                        [string]$p.sid, $null, 3, $null)
+        }
+        'run' {
+            if (-not $task) { throw 'The task is not installed.' }
+            $task.Run($null) | Out-Null
+        }
+        'disable' {
+            if ($task) { $task.Enabled = $false }
+        }
+        'uninstall' {
+            if ($task) {
+                $task.Enabled = $false
+                $deadline = [DateTime]::UtcNow.AddSeconds(620)
+                while ($task.GetInstances(0).Count -gt 0) {
+                    if ([DateTime]::UtcNow -ge $deadline) {
+                        throw 'The disabled task is still running. Saved data was kept. Try uninstall again later.'
+                    }
+                    Start-Sleep -Milliseconds 250
+                }
+                $folder.DeleteTask([string]$p.name, 0)
+                $task = $null
+                try { $task = $folder.GetTask([string]$p.name) }
+                catch {
+                    $e = $_.Exception
+                    while ($e.InnerException) { $e = $e.InnerException }
+                    if ($e.HResult -ne -2147024894) { throw }
+                }
+                if ($task) { throw 'The task is still installed. Saved data was kept.' }
+            }
+        }
+        'query' { }
+        default { throw 'Unknown scheduler operation.' }
+    }
+    if ($task) {
+        @{ exists=$true; enabled=[bool]$task.Enabled; state=[int]$task.State;
+           xml=[string]$task.Xml; result=[long]$task.LastTaskResult } | ConvertTo-Json -Compress
+    } else {
+        @{ exists=$false } | ConvertTo-Json -Compress
+    }
+} catch {
+    [Console]::Error.WriteLine($_.Exception.Message)
+    exit 1
+}
+"""
+
+
+def windows_powershell() -> str:
+    root = os.environ.get("SystemRoot", r"C:\Windows")
+    exe = Path(root) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+    if not exe.is_file():
+        raise AppError("Windows PowerShell 5.1 is unavailable. Automatic checks cannot be installed.")
+    return str(exe)
+
+
+def windows_task_name() -> str:
+    return f"{APP}-{windows_user_sid()}"
+
+
+def windows_task(operation: str, xml: Optional[str] = None,
+                 name: Optional[str] = None) -> dict:
+    payload = {"operation": operation, "xml": xml, "name": name or windows_task_name(),
+               "sid": windows_user_sid(), "source": WINDOWS_TASK_SOURCE}
+    command = [windows_powershell(), "-NoProfile", "-NonInteractive", "-EncodedCommand",
+               base64.b64encode(WINDOWS_TASK_SCRIPT.encode("utf-16-le")).decode("ascii")]
+    result = subprocess.run(command, input=json.dumps(payload), stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, encoding="utf-8", errors="replace",
+                            creationflags=subprocess.CREATE_NO_WINDOW,
+                            timeout=650 if operation == "uninstall" else 60)
+    if result.returncode:
+        raise AppError("Windows Task Scheduler failed: " + redact(result.stderr.strip())[:500]
+                       + ". Use a normal PowerShell window. On a managed computer, "
+                       "PowerShell or Task Scheduler may be restricted.")
+    try:
+        value = json.loads(result.stdout.lstrip("\ufeff"))
+    except ValueError:
+        raise AppError("Windows Task Scheduler returned an unreadable response.") from None
+    if not isinstance(value, dict) or not isinstance(value.get("exists"), bool):
+        raise AppError("Windows Task Scheduler returned an unexpected response.")
+    return value
+
+
+def windows_task_arguments(script: Path, data_dir: Path, run_id: str) -> list:
+    return [str(script), "--data-dir", str(data_dir), "check", "--scheduled", "--run-id", run_id]
+
+
+def windows_task_xml(pythonw: str, script: Path, data_dir: Path, interval: int,
+                     sid: str, run_id: str, *, start: Optional[str] = None,
+                     enabled: bool = True) -> str:
+    for value in (pythonw, str(script), str(data_dir)):
+        if re.search(r"%[^%]+%", value):
+            raise AppError("Task Scheduler expands percent-variable names in paths. "
+                           "Move the program or data to a folder without a %NAME% pair.")
+    if not 1 <= interval <= 59:
+        raise AppError("The check interval must be between 1 and 59 minutes.")
+    root = ET.Element("Task", {"xmlns": TASK_XML_NAMESPACE, "version": "1.2"})
+
+    def node(parent, name, text=None, **attributes):
+        element = ET.SubElement(parent, name, attributes)
+        if text is not None:
+            element.text = str(text)
+        return element
+
+    info = node(root, "RegistrationInfo")
+    node(info, "Description", "Oura stress alerts on Telegram")
+    node(info, "Source", WINDOWS_TASK_SOURCE)
+    triggers = node(root, "Triggers")
+    trigger = node(triggers, "TimeTrigger")
+    repetition = node(trigger, "Repetition")
+    node(repetition, "Interval", f"PT{interval}M")  # No duration means indefinite repetition.
+    node(repetition, "StopAtDurationEnd", "false")
+    if start is None:
+        start = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=interval)).replace(
+            microsecond=0).isoformat()
+    node(trigger, "StartBoundary", start)
+    node(trigger, "Enabled", "true")
+    principal = node(node(root, "Principals"), "Principal", id="User")
+    node(principal, "UserId", sid)
+    node(principal, "LogonType", "InteractiveToken")
+    node(principal, "RunLevel", "LeastPrivilege")
+    settings = node(root, "Settings")
+    for name, value in (("MultipleInstancesPolicy", "IgnoreNew"),
+                        ("DisallowStartIfOnBatteries", "false"),
+                        ("StopIfGoingOnBatteries", "false"),
+                        ("AllowHardTerminate", "true"), ("StartWhenAvailable", "true"),
+                        ("RunOnlyIfNetworkAvailable", "false")):
+        node(settings, name, value)
+    idle = node(settings, "IdleSettings")
+    node(idle, "StopOnIdleEnd", "false")
+    node(idle, "RestartOnIdle", "false")
+    for name, value in (("AllowStartOnDemand", "true"), ("Enabled", str(enabled).lower()),
+                        ("Hidden", "false"), ("RunOnlyIfIdle", "false"),
+                        ("WakeToRun", "false"), ("ExecutionTimeLimit", "PT10M"),
+                        ("Priority", "7")):
+        node(settings, name, value)
+    action = node(node(root, "Actions", Context="User"), "Exec")
+    node(action, "Command", pythonw)
+    node(action, "Arguments", subprocess.list2cmdline(windows_task_arguments(script, data_dir, run_id)))
+    return ET.tostring(root, encoding="unicode")
+
+
+def windows_task_fields(xml: str) -> dict:
+    """Read semantic fields, since Task Scheduler normalizes its stored XML."""
+    try:
+        root = ET.fromstring(xml)
+    except (ET.ParseError, TypeError):
+        raise AppError("Task Scheduler returned an invalid task definition.") from None
+    ns = {"t": TASK_XML_NAMESPACE}
+    fields = ("RegistrationInfo/Source", "Principals/Principal/UserId",
+              "Principals/Principal/LogonType", "Principals/Principal/RunLevel",
+              "Actions/Exec/Command", "Actions/Exec/Arguments",
+              "Triggers/TimeTrigger/Repetition/Interval", "Settings/Enabled",
+              "Settings/MultipleInstancesPolicy", "Settings/ExecutionTimeLimit",
+              "Settings/DisallowStartIfOnBatteries", "Settings/StopIfGoingOnBatteries",
+              "Settings/StartWhenAvailable", "Settings/WakeToRun", "Settings/RunOnlyIfIdle")
+    result = {name: root.findtext("/".join("t:" + part for part in name.split("/")),
+                                  namespaces=ns) for name in fields}
+    defaults = {"Principals/Principal/RunLevel": "LeastPrivilege",
+                "Settings/Enabled": "true", "Settings/MultipleInstancesPolicy": "IgnoreNew",
+                "Settings/ExecutionTimeLimit": "PT72H", "Settings/DisallowStartIfOnBatteries": "true",
+                "Settings/StopIfGoingOnBatteries": "true", "Settings/StartWhenAvailable": "false",
+                "Settings/WakeToRun": "false", "Settings/RunOnlyIfIdle": "false"}
+    for name, default in defaults.items():
+        if result[name] is None:
+            result[name] = default
+    result["action_count"] = len(root.findall("t:Actions/*", ns))
+    result["trigger_count"] = len(root.findall("t:Triggers/*", ns))
+    return result
+
+
+def windows_pythonw() -> str:
+    console = Path(python_path())
+    windowless = console.with_name("pythonw.exe")
+    if console.name.lower() != "python.exe" or not console.is_file() or not windowless.is_file():
+        raise AppError("Automatic checks need matching python.exe and pythonw.exe. "
+                       "Use a standard runtime from the Python install manager at python.org.")
+    return str(windowless)
+
+
+def scheduled_environment(paths: Paths) -> dict:
+    if is_windows():
+        keys = {"systemroot", "windir", "systemdrive", "comspec", "pathext",
+                "userprofile", "username", "userdomain", "homedrive", "homepath",
+                "localappdata", "appdata", "allusersprofile", "programdata",
+                "programfiles", "programfiles(x86)", "commonprogramfiles",
+                "commonprogramfiles(x86)", "psmodulepath", "number_of_processors",
+                "processor_architecture", "temp", "tmp", "path"}
+        env = {key: value for key, value in os.environ.items() if key.lower() in keys}
+        env.update(PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
+    else:
+        env = {"HOME": str(Path.home()), "PATH": "/usr/bin:/bin:/usr/sbin:/sbin"}
+        if "LANG" in os.environ:
+            env["LANG"] = os.environ["LANG"]
+    env["OURA_STRESS_HOME"] = str(paths.root)
+    return env
+
+
+@contextlib.contextmanager
+def scheduled_log(paths: Paths):
+    ensure_private_dir(paths.root)
+    target = paths.root / "check.log"
+    if is_windows():
+        protect_windows_file(target)
+    with open(target, "a", encoding="utf-8", buffering=1) as handle:
+        with contextlib.redirect_stdout(handle), contextlib.redirect_stderr(handle):
+            yield
+
+
+def install_windows_schedule(paths: Paths, script: Path, interval: int, verify: bool) -> None:
+    pythonw = windows_pythonw()
+    run_id = secrets.token_hex(16)
+    xml = windows_task_xml(pythonw, script, paths.root, interval, windows_user_sid(), run_id)
+    if verify:
+        verify_background_run(paths, pythonw, script)
+    since = time.time()
+    registered = windows_task("register", xml)
+    try:
+        if not registered.get("exists"):
+            raise AppError("the registered task is missing")
+        actual, expected = windows_task_fields(registered.get("xml")), windows_task_fields(xml)
+        differences = [name for name in expected if actual.get(name) != expected[name]]
+        if differences:
+            raise AppError("different task fields: " + ", ".join(differences))
+    except AppError as exc:
+        try:
+            if windows_task("uninstall").get("exists"):
+                raise AppError("the task is still present")
+            cleanup = "The unverified task was removed."
+        except (AppError, OSError, subprocess.SubprocessError) as cleanup_error:
+            cleanup = ("The task may still be installed: " + redact(cleanup_error)
+                       + ". To stop it, run: " + command_for("uninstall", paths))
+        raise AppError(f"Windows task verification failed ({exc}). {cleanup} "
+                       "Resolve the reported difference, then run install again.") from None
+    if verify:
+        windows_task("run")
+        report_scheduled_run(wait_for_scheduled_run(paths, since, run_id=run_id))
+    say(f"Installed. Checks run every {interval} minutes while you are signed in "
+        "to Windows and the computer is awake. They resume after you sign in again.")
+    say("Windows support is experimental; a live Windows account setup has not been tested.")
+    say(f"Log file: {paths.root / 'check.log'}")
+
+
 def launchd_plist_path() -> Path:
     return Path.home() / "Library" / "LaunchAgents" / f"{LAUNCHD_LABEL}.plist"
 
@@ -1175,8 +1842,10 @@ def cron_line(python: str, script: Path, data_dir: Path, interval_minutes: int, 
 
 def run(cmd: list, check: bool = False, input_text: Optional[str] = None,
         env: Optional[dict] = None, timeout: Optional[float] = 60) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, check=check, text=True, input=input_text, env=env,
-                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    options = ({"encoding": "utf-8", "errors": "replace",
+                "creationflags": subprocess.CREATE_NO_WINDOW} if is_windows() else {"text": True})
+    return subprocess.run(cmd, check=check, input=input_text, env=env,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout, **options)
 
 
 def systemd_user_available() -> bool:
@@ -1204,19 +1873,21 @@ def copy_script() -> Path:
     source = Path(__file__).resolve()
     if source != target.resolve():
         shutil.copy2(source, target)
-    os.chmod(target, 0o700)
+    if is_windows():
+        protect_windows_file(target)
+    else:
+        os.chmod(target, 0o700)
     return target
 
 
 def verify_background_run(paths: Paths, python: str, script: Path) -> None:
     """Run the scheduled command once, with the minimal environment a scheduler gives."""
-    env = {"HOME": str(Path.home()), "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
-           "OURA_STRESS_HOME": str(paths.root)}
-    with contextlib.suppress(KeyError):
-        env["LANG"] = os.environ["LANG"]
+    env = scheduled_environment(paths)
     say("Running one check the way the background job will...")
     run_id = secrets.token_hex(8)
-    result = run([python, str(script), "check", "--verify", "--run-id", run_id], env=env,
+    command = ([python] + windows_task_arguments(script, paths.root, run_id) + ["--verify"]
+               if is_windows() else [python, str(script), "check", "--verify", "--run-id", run_id])
+    result = run(command, env=env,
                  timeout=CHECK_TIME_LIMIT_SECONDS + INTERACTIVE_LOCK_WAIT_SECONDS + 30)
     last = read_last_run(paths)
     outcome = str(last.get("outcome") or "") if last.get("run_id") == run_id else ""
@@ -1235,12 +1906,14 @@ def verify_background_run(paths: Paths, python: str, script: Path) -> None:
 SUCCESS_OUTCOMES = ("ok", "ok: alert sent")
 
 
-def wait_for_scheduled_run(paths: Paths, since: float, timeout: float = 60) -> Optional[str]:
+def wait_for_scheduled_run(paths: Paths, since: float, timeout: float = 60,
+                           run_id: Optional[str] = None) -> Optional[str]:
     """Outcome of the first check started by the scheduler after `since`, or None."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         last = read_last_run(paths)
-        if float(last.get("invoked_at") or 0) >= since and last.get("finished_at"):
+        if (float(last.get("invoked_at") or 0) >= since and last.get("finished_at")
+                and (run_id is None or last.get("run_id") == run_id)):
             return str(last.get("outcome") or "")
         time.sleep(1)
     return None
@@ -1260,9 +1933,12 @@ def install_schedule(paths: Paths, config: dict, verify: bool = True) -> None:
     interval = int(settings_of(config)["interval_minutes"])
     python = python_path()
     system = platform.system()
-    if system not in ("Darwin", "Linux"):
+    if system not in ("Darwin", "Linux", "Windows"):
         raise AppError(f"Automatic scheduling is not supported on {system}. See SETUP.md.")
     script = copy_script()
+    if system == "Windows":
+        install_windows_schedule(paths, script, interval, verify)
+        return
     if verify:
         verify_background_run(paths, python, script)
     if system == "Darwin":
@@ -1334,7 +2010,9 @@ def uninstall_schedule() -> None:
     """Stop and remove the background job. Raises if it may still be running."""
     system = platform.system()
     problems = []
-    if system == "Darwin":
+    if system == "Windows":
+        windows_task("uninstall")
+    elif system == "Darwin":
         target = f"gui/{os.getuid()}/{LAUNCHD_LABEL}"
         run(["launchctl", "bootout", target])
         if run(["launchctl", "print", target]).returncode == 0:
@@ -1370,6 +2048,15 @@ def uninstall_schedule() -> None:
 
 def schedule_description() -> str:
     system = platform.system()
+    if system == "Windows":
+        task = windows_task("query")
+        if not task["exists"]:
+            return "not installed"
+        if not task.get("enabled"):
+            return "installed but disabled (run install again)"
+        if task.get("state") not in (2, 3, 4):
+            return "installed but not ready (run install again)"
+        return "installed (Task Scheduler; runs while you are signed in and Windows is awake)"
     if system == "Darwin":
         if not launchd_plist_path().exists():
             return "not installed"
@@ -1387,6 +2074,14 @@ def schedule_description() -> str:
             return "installed (cron)"
         return "not installed"
     return "not supported on this system"
+
+
+def safe_schedule_description() -> str:
+    """A failed scheduler query must not hide connection or health diagnostics."""
+    try:
+        return schedule_description()
+    except (AppError, OSError, subprocess.SubprocessError) as exc:
+        return "could not be checked (" + redact(exc) + ")"
 
 
 # --------------------------------------------------------------------------
@@ -1450,7 +2145,10 @@ def cmd_connect_oura(paths: Paths, args) -> int:
         raise
     except (AppError, OSError) as exc:
         raise AppError(f"Your new Oura login was saved, but the test read failed: {exc}") from None
-    if schedule_description() == "not installed":
+    description = safe_schedule_description()
+    if description.startswith("could not be checked"):
+        say("Oura is connected. Background checks " + description + ".")
+    elif description == "not installed":
         say("Automatic checks are not installed. To enable them, run:")
         say(command_for("install", paths, prefer_installed=False))
     return 0
@@ -1485,7 +2183,8 @@ def cmd_uninstall(paths: Paths, args) -> int:
     if args.delete_data:
         # Wait for any running check, so it cannot write files back after deletion.
         with interactive_lock(paths):
-            delete_owned_files(paths.root, OWNED_DATA_FILES)
+            delete_owned_files(paths.root, OWNED_DATA_FILES, remove_lock=False)
+        delete_owned_files(paths.root, (), remove_lock=True)
         delete_owned_files(installed_script_path().parent, (SCRIPT_NAME,))
         say(f"Deleted saved settings and keys in {paths.root}.")
     return 0
@@ -1494,7 +2193,7 @@ def cmd_uninstall(paths: Paths, args) -> int:
 OWNED_DATA_FILES = ("config.json", "tokens.json", "state.json", "last_run.json", "check.log")
 
 
-def delete_owned_files(folder: Path, names) -> None:
+def delete_owned_files(folder: Path, names, *, remove_lock: bool = True) -> None:
     """Remove only files this program creates; remove the folder only if then empty."""
     if not folder.is_dir():
         return
@@ -1504,7 +2203,7 @@ def delete_owned_files(folder: Path, names) -> None:
         if ours and item.is_file():
             item.unlink()
     lock = folder / "lock"
-    if lock.is_file() and set(os.listdir(folder)) == {"lock"}:
+    if remove_lock and lock.is_file() and set(os.listdir(folder)) == {"lock"}:
         lock.unlink()
     if not os.listdir(folder):
         folder.rmdir()
@@ -1514,6 +2213,7 @@ def cmd_settings(paths: Paths, args) -> int:
     config = load_config(paths)
     settings = dict(config.get("settings") or {})
     changed = False
+    schedule_problem = None
     if args.quiet is not None:
         if args.quiet.lower() in ("off", "none"):
             settings.update(quiet_start="00:00", quiet_end="00:00")
@@ -1538,13 +2238,26 @@ def cmd_settings(paths: Paths, args) -> int:
     if changed:
         config["settings"] = settings
         write_json_private(paths.config, config)
-        if args.interval is not None and schedule_description().startswith("installed"):
-            install_schedule(paths, config, verify=False)
+        if args.interval is not None:
+            description = safe_schedule_description()
+            if description.startswith("installed"):
+                try:
+                    install_schedule(paths, config, verify=False)
+                except (AppError, OSError, subprocess.SubprocessError) as exc:
+                    raise AppError("Settings were saved, but automatic check timing could not "
+                                   f"be updated: {redact(exc)}") from None
+            elif description.startswith("could not be checked"):
+                schedule_problem = description
     current = settings_of(config)
     quiet = ("off" if current["quiet_start"] == current["quiet_end"]
              else f"{current['quiet_start']} to {current['quiet_end']}")
     say(f"Quiet hours (no checks): {quiet}")
-    say(f"Check every: {current['interval_minutes']} minutes")
+    if schedule_problem:
+        say(f"Requested check interval: {current['interval_minutes']} minutes (not yet verified)")
+        say("Settings saved. Background checks " + schedule_problem + ".")
+        say("After fixing that issue, update automatic checks with: " + command_for("install", paths))
+    else:
+        say(f"Check every: {current['interval_minutes']} minutes")
     increase = int(current["min_increase_minutes"] or 0)
     say("Alert on: " + ("any new high stress" if increase == 0
                         else f"at least {increase} new minutes of high stress"))
@@ -1552,9 +2265,10 @@ def cmd_settings(paths: Paths, args) -> int:
 
 
 def cmd_status(paths: Paths, args) -> int:
-    config = load_config(paths)
-    tokens = load_tokens(paths)
-    state = load_state(paths)
+    with interactive_lock(paths):
+        config = load_config(paths)
+        tokens = load_tokens(paths)
+        state = load_state(paths)
 
     def yes(value) -> str:
         return "yes" if value else "no"
@@ -1573,7 +2287,7 @@ def cmd_status(paths: Paths, args) -> int:
     quiet = ("off" if current["quiet_start"] == current["quiet_end"]
              else f"{current['quiet_start']} to {current['quiet_end']}")
     say(f"Quiet hours: {quiet}")
-    say(f"Background checks: {schedule_description()} (every {current['interval_minutes']} min)")
+    say(f"Background checks: {safe_schedule_description()} (every {current['interval_minutes']} min)")
     say(f"Last check: {state.get('last_check') or 'never'}")
     last_run = read_last_run(paths)
     if last_run.get("invoked_at"):
@@ -1613,12 +2327,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog=SCRIPT_NAME,
         description="Telegram nudges when your Oura ring records high stress.")
+    parser.add_argument("--data-dir", help="folder for saved settings and login")
     parser.add_argument("--version", action="version", version=f"{APP} {VERSION}")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("setup", help="guided first-time setup")
     commands.add_parser("connect-oura", help="log in to Oura again")
     commands.add_parser("test", help="send a test message and read today's stress")
     check = commands.add_parser("check", help="run one check (the background job runs this)")
+    check.add_argument("--scheduled", action="store_true", help=argparse.SUPPRESS)
     check.add_argument("--verify", action="store_true", help=argparse.SUPPRESS)
     check.add_argument("--run-id", help=argparse.SUPPRESS)
     commands.add_parser("install", help="start background checks")
@@ -1643,7 +2359,20 @@ COMMANDS = {
 
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
-    paths = default_paths()
+    paths = Paths(Path(args.data_dir).expanduser().resolve()) if args.data_dir else default_paths()
+    try:
+        if is_windows():
+            windows_runtime_check(paths)
+        if getattr(args, "scheduled", False):
+            with scheduled_log(paths):
+                return dispatch_command(paths, args)
+        return dispatch_command(paths, args)
+    except (AppError, OSError) as exc:
+        say(f"Problem: {redact(exc)}")
+        return 1
+
+
+def dispatch_command(paths: Paths, args) -> int:
     try:
         return COMMANDS[args.command](paths, args)
     except KeyboardInterrupt:

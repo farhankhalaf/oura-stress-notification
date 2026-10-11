@@ -11,7 +11,7 @@ Assume the person is not a developer. Their request may be only "Set this up" pl
 - Explain the next action in plain English: where to click, what to paste, and what they should see. Avoid unexplained terms such as OAuth, PKCE, launchd, cron and environment variables.
 - Handle downloading, choosing Python, running commands and checking results. Ask the person only for steps that need their account access, consent or private input.
 - Never ask them to paste a bot token or Client Secret into the AI chat. Use the setup program's hidden input in a terminal they control. Existing privately supplied environment variables are also supported; never print their values.
-- Never print, copy, commit or upload `~/.config/oura-stress-telegram/` or its contents.
+- Never print, copy, commit or upload the saved-data folder or its contents: `~/.config/oura-stress-telegram/` on Mac/Linux, `%LOCALAPPDATA%\oura-stress-telegram` on Windows, or any `--data-dir` / `OURA_STRESS_HOME` override. This includes config.json, tokens.json, state and logs.
 - Have the person complete Oura or Telegram sign-in if needed. Do not sign in for them unless they explicitly ask you to.
 - For ordinary installation, do not edit `oura_stress_telegram.py` to work around a failure. Use the troubleshooting guidance, report a clear blocker, or help prepare an issue without secrets. A maintainer's explicit development request is separate from installation.
 - If your agent environment blocks network, file or scheduler access, use its normal permission flow or the person's own Terminal. Verify in that user environment before calling a restriction a program failure.
@@ -19,13 +19,13 @@ Assume the person is not a developer. Their request may be only "Set this up" pl
 
 ## 1. Check the computer and get the code
 
-Use a Mac or Linux computer. On Windows, explain that it is not supported yet and stop before installing anything.
+Use a Mac, Linux or Windows computer. Windows support is experimental: automated checks cover the Windows implementation, but a live Windows account setup and phone delivery have not been tested. Explain that limitation before setup. Use a normal, non-elevated PowerShell window on Windows; do not switch to a different administrator account.
 
-Find Python 3.9 or newer by running `python3 --version`. Use its actual path consistently for setup and later commands. No pip packages, Node, Docker or other project dependencies are needed.
+Find Python 3.9 or newer: `python3 --version` on Mac/Linux or `python --version` on Windows. On Windows, `py` can select an existing runtime if needed. Obtain the real interpreter path with `python -c "import sys; print(sys.executable)"` and use that path consistently for setup and later commands. No pip packages, Node, Docker or other project dependencies are needed.
 
-If Python is missing, guide the person through the Mac's offered command line developer tools, or a supported Python from python.org. Explain that this is a prerequisite the agent will use, not something they need to learn. For a python.org installation on macOS, run **Install Certificates.command** in that version's Applications/Python folder before setup, as described in the [Python macOS installation guide](https://docs.python.org/3/using/mac.html). Do not claim setup is complete while installation is pending.
+If Python is missing on Windows, guide the person through the [Python install manager](https://www.python.org/downloads/), then run `python --version` and confirm a runtime is available. Use an ordinary runtime launched by the manager, not the older Microsoft Store Python package. The program rejects Store package virtualization before saving credentials. Existing traditional python.org installations also work if they include both `python.exe` and `pythonw.exe`. On Mac, use the offered command line developer tools or a supported Python from python.org. Explain that this is a prerequisite the agent will use, not something they need to learn. For a python.org installation on macOS, run **Install Certificates.command** in that version's Applications/Python folder before setup, as described in the [Python macOS installation guide](https://docs.python.org/3/using/mac.html). Do not claim setup is complete while installation is pending.
 
-Put the project in a permanent folder such as `~/oura-stress-notification`. If it already exists, inspect and reuse it without overwriting local changes.
+Put the project in a permanent folder such as `~/oura-stress-notification` (on Windows, a folder named `oura-stress-notification` under their user profile). If it already exists, inspect and reuse it without overwriting local changes.
 
 - If Git is already available, clone `https://github.com/fkb032/oura-stress-notification.git` there.
 - If Git is unavailable, download `https://github.com/fkb032/oura-stress-notification/archive/refs/heads/main.zip` and extract it there using available download/archive tools. The person does not need to install Git.
@@ -37,6 +37,8 @@ Read [SETUP.md](SETUP.md) for requirements and reference before continuing. Do n
 Explain: "I'll set up the program. You'll create a sender for your Telegram alerts, give it permission to read Oura, and check one test notification on your phone."
 
 Run the chosen Python with `oura_stress_telegram.py setup` from the project folder in a real interactive terminal or PTY. Stay with it through every prompt.
+
+On Windows, PowerShell needs `&` before a quoted executable path, for example `& 'C:\path\python.exe' 'C:\path\oura_stress_telegram.py' setup`. Substitute the real paths. The program prints PowerShell-compatible recovery commands. Saved data defaults to `%LOCALAPPDATA%\oura-stress-telegram`; use a dedicated local NTFS folder, not a shared/removable folder. Keep runtime, project and data paths free of `%NAME%` pairs, which Task Scheduler expands.
 
 If your terminal tool cannot let the person enter private values, help them open their own Terminal and give them one exact command with the real project path. Continue guiding the prompts and return to verification afterward. Do not leave them with an unexplained command and call the task done.
 
@@ -75,7 +77,7 @@ When the consent screen opens, tell them to turn on **Sleep, readiness, and acti
 
 ### Automatic checks
 
-Answer **Y** to automatic background checks as part of the requested setup. The program tests the scheduled command and then waits for the scheduler to run it. Confirm those checks succeed before moving on. On macOS, explain that a notice about Python running in the background is expected for this job; keep it enabled if they want automatic checks.
+Answer **Y** to automatic background checks as part of the requested setup. The program tests the scheduled command and then waits for the scheduler to run it. Confirm those checks succeed before moving on. On macOS, explain that a notice about Python running in the background is expected for this job; keep it enabled if they want automatic checks. On Windows, checks use the built-in scheduler and run while the person is signed in and the computer is awake. No Windows password or administrator permission is needed by the designed setup. A registration or verification failure is unfinished setup; do not label it successful or work around it by changing accounts.
 
 ## 3. Verify the result on their phone
 
@@ -90,7 +92,7 @@ Check that `status` shows the connection and installed background checks. A succ
 
 On iPhone, guide them to **Settings > Notifications > Telegram**. Allow notifications and enable **Lock Screen** or **Banners**. Let them choose when message previews appear; do not silently change their privacy preferences. Check Focus or Do Not Disturb if delivery is delayed.
 
-Before sending the test, have them put Telegram in the background: lock the iPhone if Lock Screen alerts are enabled, or go to the Home Screen if testing Banners. Then run `test` and ask whether it appeared on the lock screen or as an iOS banner while Telegram was in the background. Expect **🧪 Test from Oura stress alerts. Telegram works.** Real stress alerts use the wording pictured in the README. An in-app Telegram banner, a chat message or a computer notification does not pass this phone-push check. If phone confirmation is unavailable, explicitly report it as unverified instead of claiming completion.
+Before sending the test, have them put Telegram in the background: lock the iPhone if Lock Screen alerts are enabled, or go to the Home Screen if testing Banners. Then run `test` and ask whether it appeared on the lock screen or as an iOS banner while Telegram was in the background. Expect **🧪 Test from Oura stress alerts. Telegram works.** Real stress alerts use the wording pictured in the README. Its GIF is a simulation with example data, not a recording of phone delivery. To view details, open Oura separately and tap Stress; the Telegram notification opens Telegram. An in-app Telegram banner, a chat message or a computer notification does not pass this phone-push check. If phone confirmation is unavailable, explicitly report it as unverified instead of claiming completion.
 
 For Linux, verify the actual systemd timer or cron run rather than relying on a successful install command. Cron remains experimental. Explain the logout limitation and the installer's option to keep running after logout.
 
@@ -113,6 +115,9 @@ Provide the exact command to stop the job, using the chosen Python and an absolu
 - **No stress data yet:** have them sync the ring through the Oura app. Daytime Stress needs a supported ring, active membership and a few days of wear.
 - **Telegram polling conflict:** create a new dedicated bot; do not stop another program's bot.
 - **Connection works but no schedule exists:** run `install`, then check `status` again. Reconnecting alone does not install automatic checks.
+- **Windows certificate error:** confirm the computer's date/time, apply Windows Update certificate updates, then retry. On a managed computer, the administrator may need to repair the trusted certificate store. Never disable TLS verification.
+- **Windows scheduler query or permission failure:** use the exact error and the person's ordinary PowerShell session. A policy-restricted or unavailable scheduler is a blocker, not an absent task or permission to request an administrator password.
+- **Legacy Windows settings detected:** use the exact printed `--data-dir` command to keep the connection. Do not delete or move saved keys without the person choosing that action.
 - **Other failures:** use [SETUP.md troubleshooting](SETUP.md#troubleshooting). Report the exact safe error and what is still unverified. Do not claim success or invent a provider outage.
 
 ## Advanced setup, only when needed
@@ -121,7 +126,8 @@ Existing private environment values can be used: `TELEGRAM_BOT_TOKEN`, `TELEGRAM
 
 | What | Location |
 |---|---|
-| Keys, login, settings, state | `~/.config/oura-stress-telegram/` or `$OURA_STRESS_HOME` |
-| Installed script | `~/.local/share/oura-stress-telegram/oura_stress_telegram.py` |
+| Keys, login, settings, state | Mac/Linux: `~/.config/oura-stress-telegram/`; Windows: `%LOCALAPPDATA%\oura-stress-telegram`; override with `--data-dir` or `OURA_STRESS_HOME` |
+| Installed script | Mac/Linux: `~/.local/share/oura-stress-telegram/oura_stress_telegram.py`; Windows: `%LOCALAPPDATA%\oura-stress-telegram-app\oura_stress_telegram.py` |
 | macOS schedule and log | `~/Library/LaunchAgents/local.oura-stress-telegram.plist`, `~/Library/Logs/oura-stress-telegram.log` |
 | Linux schedule | systemd user timer `oura-stress-telegram.timer`, or a crontab line tagged `# oura-stress-telegram` |
+| Windows schedule and log | Task Scheduler task `oura-stress-telegram-<user SID>`; `check.log` in the data folder |

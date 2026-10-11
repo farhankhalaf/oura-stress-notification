@@ -27,3 +27,23 @@ jobs:
       - uses: actions/checkout@v7
       - run: /usr/bin/python3 --version
       - run: /usr/bin/python3 -m unittest discover -s tests -v
+
+  windows:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.13", "3.14", "3.15"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Record runner context
+        run: |
+          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+          $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+          Write-Output "Administrator: $($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))"
+          Write-Output "Interactive session: $([Environment]::UserInteractive)"
+          Write-Output "Hosted CI does not establish consumer setup or phone delivery."
+      - run: python -m unittest discover -s tests -v

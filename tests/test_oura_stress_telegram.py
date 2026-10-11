@@ -18,7 +18,7 @@ import unittest
 import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -253,7 +253,7 @@ class FailureTests(Base):
         self.assertEqual(len(self.http.sent), 1)
         self.assertIn("having trouble", self.http.sent[0])
         self.assertIn("HTTP 500", self.http.sent[0])
-        self.assertIn(" status</code>", self.http.sent[0])
+        self.assertRegex(self.http.sent[0], r" (?:&#x27;)?status(?:&#x27;)?</code>")
         self.assertEqual(self.state()["consecutive_failures"], 4)
         self.http.stress = [(200, stress_body())]
         self.assertEqual(self.check(), 0)
@@ -304,6 +304,7 @@ class FailureTests(Base):
         self.assertEqual(ost.retry_after_seconds({"retry-after": "soon"}),
                          ost.DEFAULT_RETRY_AFTER_SECONDS)
 
+    @unittest.skipIf(os.name == "nt", "POSIX hard deadline; Windows soft deadline has native coverage")
     def test_whole_run_time_limit(self):
         def slow(*args, **kwargs):
             time.sleep(5)
@@ -342,10 +343,10 @@ class TokenTests(Base):
         state = self.state()
         self.assertTrue(state["needs_reconnect"])
         self.assertTrue(state["reconnect_notice_sent"])
-        self.assertIn("connect-oura</code>", self.http.sent[0])
+        self.assertRegex(self.http.sent[0], r"connect-oura(?:&#x27;)?</code>")
         self.assertIn(ost.SCRIPT_NAME, self.http.sent[0])
         # The test folder is not the default one, so the command must carry it.
-        self.assertIn("OURA_STRESS_HOME=", self.http.sent[0])
+        self.assertIn("--data-dir" if os.name == "nt" else "OURA_STRESS_HOME=", self.http.sent[0])
         self.assertEqual(ost.read_last_run(self.paths)["outcome"],
                          "paused: Oura needs to be reconnected")
         calls = len(self.http.calls)
@@ -376,7 +377,7 @@ class TokenTests(Base):
         self.assertEqual(self.check(), 1)
         self.assertTrue(self.state()["needs_reconnect"])
         self.assertTrue(self.state()["reconnect_notice_sent"])
-        self.assertIn("connect-oura</code>", self.http.sent[0])
+        self.assertRegex(self.http.sent[0], r"connect-oura(?:&#x27;)?</code>")
         self.assertIn("Sleep, readiness, and activity", self.http.sent[0])
         self.assertEqual(self.check(), 1)
         self.assertEqual(len(self.http.token_calls), 1)
@@ -469,6 +470,10 @@ class SafetyTests(Base):
     def test_files_are_private(self):
         self.http.stress = [(200, stress_body())]
         self.check()
+        if os.name == "nt":
+            for path in (self.paths.root, self.paths.config, self.paths.tokens, self.paths.state):
+                self.assertTrue(ost.private_windows_acl(ost.windows_acl(path), ost.windows_user_sid()))
+            return
         self.assertEqual(stat.S_IMODE(os.stat(self.paths.root).st_mode), 0o700)
         for path in (self.paths.config, self.paths.tokens, self.paths.state):
             self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o600, path)
@@ -509,7 +514,7 @@ class SafetyTests(Base):
             import sys, time
             sys.path.insert(0, {str(ROOT)!r})
             import oura_stress_telegram as ost
-            from pathlib import Path
+            from pathlib import Path, PurePosixPath
             with ost.run_lock(ost.Paths(Path({str(self.paths.root)!r}))) as held:
                 print("held" if held else "busy", flush=True)
                 time.sleep(3)
@@ -540,16 +545,29 @@ class SafetyTests(Base):
             with mock.patch.object(ost, "default_paths",
                                    return_value=ost.Paths(ost.default_root())):
                 command = ost.command_for("connect-oura")
-        self.assertTrue(command.split()[0].startswith(("/", "'/")))
+        self.assertTrue(command.startswith("& ") if os.name == "nt" else
+                        command.split()[0].startswith(("/", "'/")))
         self.assertIn(ost.SCRIPT_NAME, command)
         self.assertNotIn("OURA_STRESS_HOME", command)
 
     def test_recovery_command_works_from_a_clean_shell_with_custom_folder(self):
         command = ost.command_for("status", self.paths)
-        self.assertIn("OURA_STRESS_HOME=", command)
-        env = {"HOME": self.tmp.name, "PATH": "/usr/bin:/bin"}
-        result = subprocess.run(["/bin/sh", "-c", command], env=env, capture_output=True,
-                                text=True, timeout=60)
+        if os.name == "nt":
+            self.assertIn("--data-dir", command)
+            command = ("$ErrorActionPreference='Stop'; "
+                       "[Console]::InputEncoding=[Text.UTF8Encoding]::new($false); "
+                       "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); "
+                       + command + "; exit $LASTEXITCODE")
+            encoded = base64.b64encode(command.encode("utf-16-le")).decode("ascii")
+            cmd = [ost.windows_powershell(), "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded]
+            env = ost.scheduled_environment(self.paths)
+        else:
+            self.assertIn("OURA_STRESS_HOME=", command)
+            cmd = ["/bin/sh", "-c", command]
+            env = {"HOME": self.tmp.name, "PATH": "/usr/bin:/bin"}
+        result = subprocess.run(cmd, env=env, capture_output=True, encoding="utf-8",
+                                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                                timeout=60)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(f"Settings folder: {self.paths.root.resolve()}", result.stdout)
         self.assertIn("Telegram set up: yes", result.stdout)
@@ -562,8 +580,7 @@ class SafetyTests(Base):
         with held:
             child = subprocess.run(
                 [sys.executable, str(ROOT / ost.SCRIPT_NAME), "check"],
-                env={"HOME": self.tmp.name, "PATH": "/usr/bin:/bin",
-                     "OURA_STRESS_HOME": str(self.paths.root)},
+                env=ost.scheduled_environment(self.paths),
                 capture_output=True, text=True, timeout=60)
         self.assertEqual(child.returncode, 0)
         self.assertEqual(ost.read_last_run(self.paths)["outcome"],
@@ -658,7 +675,7 @@ class ReviewFixTests(Base):
         self.http.token_response = (401, {"error": "invalid_client"})
         self.check()
         self.assertEqual(self.state()["reconnect_action"], "setup")
-        self.assertIn(" setup</code>", self.http.sent[0])
+        self.assertRegex(self.http.sent[0], r" (?:&#x27;)?setup(?:&#x27;)?</code>")
 
     def test_truncated_response_counts_as_failure(self):
         import http.client
@@ -670,6 +687,7 @@ class ReviewFixTests(Base):
                 self.assertEqual(self.check(), 1)
         self.assertEqual(self.state()["consecutive_failures"], 1)
 
+    @unittest.skipIf(os.name == "nt", "POSIX hard deadline; Windows soft deadline has native coverage")
     def test_timeout_does_no_more_network_work(self):
         sent_before = len(self.http.sent)
         self.set_state(consecutive_failures=2)
@@ -702,6 +720,7 @@ class ReviewFixTests(Base):
             idle.close()
         self.assertEqual(result["code"], "c123456")
 
+    @unittest.skipIf(os.name == "nt", "POSIX hard deadline; Windows soft deadline has native coverage")
     def test_deadline_inside_error_body_read_is_not_swallowed(self):
         import email.message
         self.set_state(consecutive_failures=2)  # a counted failure would send a Telegram alert
@@ -724,6 +743,7 @@ class ReviewFixTests(Base):
         send.assert_not_called()
         self.assertIn("longer than", self.state()["last_error"])
 
+    @unittest.skipIf(os.name == "nt", "POSIX hard deadline; Windows soft deadline has native coverage")
     def test_timeout_cleanup_happens_while_holding_the_lock(self):
         import fcntl
         held_during_write = []
@@ -758,6 +778,7 @@ class ReviewFixTests(Base):
             ost.read_stress_now(self.paths, config)
         self.assertEqual(len(self.http.calls), calls)
 
+    @unittest.skipIf(os.name == "nt", "macOS-specific system interface")
     def test_uninstall_reports_a_job_that_is_still_loaded(self):
         plist = Path(self.tmp.name) / "job.plist"
         plist.write_text("x")
@@ -783,6 +804,7 @@ class ReviewFixTests(Base):
                 ost.uninstall_schedule()
         self.assertTrue((unit_dir / f"{ost.SYSTEMD_UNIT}.timer").exists())
 
+    @unittest.skipIf(os.name == "nt", "macOS-specific system interface")
     def test_python_path_keeps_stable_paths(self):
         with mock.patch.object(ost.sys, "executable", "/opt/homebrew/opt/python@3.14/bin/python3.14"):
             self.assertEqual(ost.python_path(), "/opt/homebrew/opt/python@3.14/bin/python3.14")
@@ -984,24 +1006,24 @@ class TelegramPairingTests(unittest.TestCase):
 
 class ScheduleTests(unittest.TestCase):
     def test_launchd_plist(self):
-        data = plistlib.loads(ost.launchd_plist("/usr/bin/python3", Path("/x y/s'q.py"),
-                                                Path("/d d"), 5))
+        data = plistlib.loads(ost.launchd_plist("/usr/bin/python3", PurePosixPath("/x y/s'q.py"),
+                                                PurePosixPath("/d d"), 5))
         self.assertEqual(data["Label"], ost.LAUNCHD_LABEL)
         self.assertEqual(data["ProgramArguments"], ["/usr/bin/python3", "/x y/s'q.py", "check"])
         self.assertEqual(data["StartInterval"], 300)
         self.assertEqual(data["EnvironmentVariables"], {"OURA_STRESS_HOME": "/d d"})
 
     def test_cron_line_quotes_paths_and_escapes_percent(self):
-        line = ost.cron_line("/usr/bin/python3", Path("/home/a b/it's 100%.py"), Path("/d"), 10,
-                             Path("/d/check.log"))
+        line = ost.cron_line("/usr/bin/python3", PurePosixPath("/home/a b/it's 100%.py"), PurePosixPath("/d"), 10,
+                             PurePosixPath("/d/check.log"))
         self.assertTrue(line.startswith("*/10 * * * * OURA_STRESS_HOME=/d "))
         self.assertIn("100\\%.py", line)
         self.assertNotIn("100%.py", line.replace("\\%", ""))
         self.assertTrue(line.endswith(ost.CRON_MARKER))
 
     def test_systemd_units(self):
-        service, timer = ost.systemd_units("/usr/bin/python3", Path("/s $x 5%.py"),
-                                           Path("/d 1"), 5)
+        service, timer = ost.systemd_units("/usr/bin/python3", PurePosixPath("/s $x 5%.py"),
+                                           PurePosixPath("/d 1"), 5)
         self.assertIn('ExecStart="/usr/bin/python3" "/s $$x 5%%.py" check', service)
         self.assertIn('Environment="OURA_STRESS_HOME=/d 1"', service)
         self.assertIn("OnUnitActiveSec=5min", timer)
@@ -1009,7 +1031,7 @@ class ScheduleTests(unittest.TestCase):
     def test_scheduled_command_runs_with_minimal_environment(self):
         with tempfile.TemporaryDirectory() as tmp:
             data = Path(tmp) / "data with space"
-            env = {"HOME": tmp, "PATH": "/usr/bin:/bin", "OURA_STRESS_HOME": str(data)}
+            env = ost.scheduled_environment(ost.Paths(data))
             result = subprocess.run([sys.executable, str(ROOT / ost.SCRIPT_NAME), "check"],
                                     env=env, capture_output=True, text=True, timeout=60)
             self.assertEqual(result.returncode, 1)

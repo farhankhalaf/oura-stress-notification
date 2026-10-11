@@ -7,10 +7,10 @@ For agent-led installation, follow [AGENTS.md](AGENTS.md). This guide covers req
 - An **Oura Ring Gen3 or Ring 4**, an active **Oura Membership**, and **Daytime Stress already showing** in the Oura app.
 - **Telegram on your iPhone**, with notifications allowed. Other phones with Telegram can receive these alerts too.
 - **Telegram on your computer during setup**, using [Telegram Web](https://web.telegram.org/) or the desktop app. This lets you copy the bot token directly into the setup window.
-- A **Mac or Linux computer** that stays on during your day. Checks run while the computer is awake; the default setup also requires you to be logged in. Mac has been tested live. Linux scheduling still needs live testing; cron is experimental.
+- A **Mac, Linux or Windows computer** that stays on during your day. Checks run while the computer is awake; the default setup also requires you to be logged in. Mac has been tested live. Windows support is experimental and has not had a live account setup test. Linux scheduling still needs live testing; cron is experimental.
 - An AI agent with access to your computer, or the manual instructions below.
 
-There is no separate iPhone app to install. The program runs on your computer; the notification arrives through Telegram. Windows is not supported yet.
+There is no separate iPhone app to install. The program runs on your computer; the notification arrives through Telegram. Windows needs a standard Python runtime and Windows PowerShell 5.1; your agent handles the technical steps.
 
 ## Make sure it reaches your iPhone
 
@@ -28,6 +28,39 @@ Expect **🧪 Test from Oura stress alerts. Telegram works.** Confirm that it ap
 - Ask your agent **"Stop the Oura alerts"** to remove the background job. Your saved connection can be kept for later.
 
 ## Manual setup
+
+### Windows
+
+Windows support is experimental. A live Windows setup with Oura and Telegram has
+not been tested. The program is designed for Windows 10/11 and uses the built-in
+Task Scheduler while you are signed in and the computer is awake.
+
+1. Download the [project ZIP](https://github.com/fkb032/oura-stress-notification/archive/refs/heads/main.zip), unzip it and put the folder in your user folder.
+2. Open **PowerShell** from the Start menu, using an ordinary window rather than "Run as administrator". Keep the same Windows account throughout setup.
+3. Check `python --version`. If Python is missing, install the [Python install manager](https://www.python.org/downloads/), then run that command again. Use a standard runtime, not the older Microsoft Store Python package. Existing python.org installations are also supported. Python 3.9 or newer is required.
+4. Go to the unzipped folder, for example `cd "$env:USERPROFILE\oura-stress-notification"`, and run:
+
+   ```powershell
+   python .\oura_stress_telegram.py setup
+   ```
+
+Follow the Telegram, Oura and background-check prompts described below. No Windows
+password is stored. The scheduler uses `pythonw.exe` so a terminal window does not
+flash on every check. The matching `python.exe` remains the interpreter for
+interactive setup and reconnect commands.
+
+Save data on a local NTFS drive. The default data folder is
+`%LOCALAPPDATA%\oura-stress-telegram`; the installed script lives in the sibling
+`%LOCALAPPDATA%\oura-stress-telegram-app` folder. Use `--data-dir` before the command
+to choose a dedicated folder. Paths containing a `%NAME%` pair cannot be used in
+the scheduled action because Windows expands those references.
+
+If the program detects settings from the earlier unsupported Windows path, it
+prints an exact command to reuse that folder, plus a separate cleanup command.
+Choose whether to keep or delete those settings. It rejects Store Python's private
+package folders before asking for credentials; use the install-manager runtime.
+
+### Mac and Linux
 
 **1. Get the code.** Download the [project ZIP](https://github.com/fkb032/oura-stress-notification/archive/refs/heads/main.zip). Unzip it, rename the folder to `oura-stress-notification`, and move it into your home folder (on a Mac, the folder with your name and the house icon). Or, if you know git:
 
@@ -71,7 +104,7 @@ That is it. Keep the Oura app on your phone so your ring keeps syncing.
 
 ## Everyday commands
 
-Run these from the project folder in Terminal.
+Run these from the project folder in Terminal. On Windows use PowerShell and replace `python3` with `python` (or your agent's chosen absolute interpreter path).
 
 | What you want | Command |
 |---|---|
@@ -117,28 +150,61 @@ python3 oura_stress_telegram.py settings --min-increase 15
 | Oura itself shows an error page during sign-in or consent | Press Ctrl+C in the terminal and run the same command again. If the error repeats, check the Client ID and Daily under Scopes, then run setup and enter the app details again. |
 | The pairing code did not reach the bot | Open your bot in Telegram, press Start, then send the code as a normal message. |
 | No alerts at all | Run `status` and look at "Last background run". On a Mac the log is in `~/Library/Logs/oura-stress-telegram.log`. |
+| Windows: automatic checks stop when you sign out | Stay signed in and keep the computer awake. Checks resume when you sign in again; a locked screen is fine. |
+| Windows: scheduler access or PowerShell error | Use a normal PowerShell window under the same account. Managed-computer policies may prevent automatic checks. The program reports this as a failure, not successful installation. |
+| Windows: certificate verification fails | Check Windows date/time, apply Windows Update certificate updates and retry. On a managed computer, ask its administrator about the trusted certificate store. Do not disable certificate verification. |
 | Linux: checks stop when you log out | Run `loginctl enable-linger $USER`, or answer yes when `install` offers it. |
 
 ## Privacy and security
 
-- Your Telegram bot token, Oura app keys and Oura login are saved in `~/.config/oura-stress-telegram/`, readable only by your user account.
+- Your Telegram bot token, Oura app keys and Oura login are saved in `~/.config/oura-stress-telegram/` on Mac/Linux or `%LOCALAPPDATA%\oura-stress-telegram` on Windows. Unix files use private permissions; Windows access is restricted to your user, SYSTEM and local administrators.
 - The program only asks Oura for **daily** data and only reads the daily stress summary.
 - Telegram messages pass through Telegram's servers like any bot message. Alerts contain only minutes of stress. Problem notices also include the error and the command to run, which shows folder paths on your computer.
 - To remove everything: run `uninstall --delete-data`, delete your application at [developer.ouraring.com/applications](https://developer.ouraring.com/applications), and delete the bot by sending `/deletebot` to @BotFather.
 
 ## Project status
 
-Version 0.1.0. A fresh agent-led setup by a nontechnical user and delivery to a real iPhone have not been tested yet. The phone image is illustrative. Live macOS setup with a fresh Oura application, Telegram delivery, both callback paths, background startup, token refresh and lost-response recovery were tested on October 10, 2026. The later review-driven recovery fixes are covered by unit tests only; the interactive OAuth flow was not repeated after those changes. Automated tests run on macOS and Linux. Untested cases and test deviations, including logout/login, access revocation and live Linux scheduling, are recorded in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). Please [open an issue](https://github.com/fkb032/oura-stress-notification/issues) if anything is confusing or broken.
+Version 0.2.0 adds experimental native Windows support. Live Windows account setup,
+normal-user installation, logout/login and physical iPhone delivery remain
+untested. Automated Windows checks exercise native file permissions, locking,
+PowerShell recovery commands and real Task Scheduler registration and execution.
+A fresh nontechnical user's complete agent-led setup is also unverified.
+
+The [two animated demos](docs/DEMOS.md) use synthetic data and simulated screens.
+Their Oura layout and navigation were checked against a supplied reference and the
+mirrored app; they are not recordings of a real notification test.
+
+The October 10, 2026 live macOS run verified fresh-app setup, Telegram delivery,
+both callbacks, background startup, token refresh and lost-response recovery.
+Later recovery changes and the platform work have automated coverage; the live
+OAuth flow was not repeated after them. Tests run on macOS, Linux and Windows.
+Details and remaining acceptance checks are in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+Please [open an issue](https://github.com/fkb032/oura-stress-notification/issues)
+if anything is confusing or broken.
 
 ## For developers
 
-One file, Python standard library only, Python 3.9+. The script filename, saved-settings folder and scheduler identifiers retain their original names for compatibility with existing installations.
+One file, Python standard library only, Python 3.9+. The script filename and existing Mac/Linux data and scheduler identifiers retain their original names for compatibility. Windows uses a task name containing the current user SID, so different Windows accounts have separate tasks.
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
 Oura retired personal access tokens in December 2025, so this uses OAuth2: authorization code with PKCE, a one-time local callback on `localhost:8765`, and automatic refresh. Oura refresh tokens are single use, so each new token pair is saved before it is used, and every command that touches tokens shares one file lock.
+
+### Windows implementation notes
+
+Checks use the same OAuth flow, refresh-token lock and alert logic on all platforms.
+Windows uses a native byte-range lock, private Windows access rules and bounded
+retries for file replacement when another process briefly has the file open.
+Its 120-second check deadline is soft because Windows may delay a Python interrupt
+until native work returns. The scheduled task has a ten-minute hard limit. The
+interactive CLI has no hard process-kill deadline. A forced stop during token
+rotation may require the normal reconnect flow.
+
+The Windows test suite exercises real platform APIs and disposable scheduled tasks
+without Oura or Telegram credentials. Hosted CI does not prove a normal user's
+complete setup, even when native scheduler execution is available on the runner.
 
 ## License
 
