@@ -19,6 +19,13 @@ Assume the person is not a developer. Their request may be only "Set this up" pl
 
 ## 1. Check the computer and get the code
 
+Confirm they have an Oura Ring Gen3 or Ring 4 with an active membership, Telegram
+on their phone with notifications allowed, and a computer that can stay awake.
+Ask whether Daytime Stress already appears in Oura. If it does not, explain that
+it needs several days of wear and syncing. Setup can still finish: the first
+valid reading, whenever it appears, becomes a silent starting point. Alerts begin
+with later increases. Do not promise immediate stress readings or a fixed delay.
+
 Use a Mac, Linux or Windows computer. Windows support is experimental: automated checks cover the Windows implementation, but a live Windows account setup and phone delivery have not been tested. Explain that limitation before setup. Use a normal, non-elevated PowerShell window on Windows; do not switch to a different administrator account.
 
 Find Python 3.9 or newer: `python3 --version` on Mac/Linux or `python --version` on Windows. On Windows, `py` can select an existing runtime if needed. Obtain the real interpreter path with `python -c "import sys; print(sys.executable)"` and use that path consistently for setup and later commands. No pip packages, Node, Docker or other project dependencies are needed.
@@ -31,6 +38,9 @@ Put the project in a permanent folder such as `~/oura-stress-notification` (on W
 - If Git is unavailable, download `https://github.com/fkb032/oura-stress-notification/archive/refs/heads/main.zip` and extract it there using available download/archive tools. The person does not need to install Git.
 
 Read [SETUP.md](SETUP.md) for requirements and reference before continuing. Do not run the release checklist or fault-injection tests during a person's installation.
+
+The default installation channel is the latest `main` branch. Published release
+tags are fixed snapshots; use a specific tag if the person requests that version.
 
 ## 2. Start the guided setup
 
@@ -86,6 +96,13 @@ When the consent screen opens, tell them to turn on **Sleep, readiness, and acti
 
 ### Automatic checks
 
+For a new installation, the first check with valid stress data saves today's
+existing total without sending a stress alert. Missing data does not start this
+step; a measured zero does. This happens once, not every morning. Reconnecting or
+reinstalling preserves existing alert history. An established installation's
+verification check can send a pending alert or today's accumulated stress after
+a date change, even during quiet hours. The separate `test` message is unchanged.
+
 Answer **Y** to automatic background checks as part of the requested setup. The program tests the scheduled command and then waits for the scheduler to run it. Confirm those checks succeed before moving on. On macOS, explain that a notice about Python running in the background is expected for this job; keep it enabled if they want automatic checks. On Windows, checks use the built-in scheduler and run while the person is signed in and the computer is awake. No Windows password or administrator permission is needed by the designed setup. A registration or verification failure is unfinished setup; do not label it successful or work around it by changing accounts.
 
 ## 3. Verify the result on their phone
@@ -101,7 +118,7 @@ Check that `status` shows the connection and installed background checks. A succ
 
 On iPhone, guide them to **Settings > Notifications > Telegram**. Allow notifications and enable **Lock Screen** or **Banners**. Let them choose when message previews appear; do not silently change their privacy preferences. Check Focus or Do Not Disturb if delivery is delayed.
 
-Before sending the test, have them put Telegram in the background: lock the iPhone if Lock Screen alerts are enabled, or go to the Home Screen if testing Banners. Then run `test` and ask whether it appeared on the lock screen or as an iOS banner while Telegram was in the background. Expect **🧪 Test from Oura stress alerts. Telegram works.** Real stress alerts use the wording pictured in the README. Its GIF is an edited phone walkthrough using a real notification, Home Screen and Oura captures, with privacy cleanup and simulated interactions; it is not a continuous recording or a promise of instant delivery. To view details, open Oura separately and tap Stress; the Telegram notification opens Telegram. An in-app Telegram banner, a chat message or a computer notification does not pass this phone-push check. If phone confirmation is unavailable, explicitly report it as unverified instead of claiming completion.
+Before sending the test, have them put Telegram in the background: lock the iPhone if Lock Screen alerts are enabled, or go to the Home Screen if testing Banners. Then run `test` and ask whether it appeared on the lock screen or as an iOS banner while Telegram was in the background. Expect **🧪 Test from Oura stress alerts. Telegram works.** The README pictures the short stress headline used when the day's previous baseline is zero. Alerts after a positive baseline say **More high stress recorded** and include added minutes; this can be the first alert after setup. Its GIF is an edited phone walkthrough using a real notification, Home Screen and Oura captures, with privacy cleanup and simulated interactions; it is not a continuous recording or a promise of instant delivery. To view details, open Oura separately and tap Stress; the Telegram notification opens Telegram. An in-app Telegram banner, a chat message or a computer notification does not pass this phone-push check. If phone confirmation is unavailable, explicitly report it as unverified instead of claiming completion.
 
 For Linux, verify the actual systemd timer or cron run rather than relying on a successful install command. Cron remains experimental. Explain the logout limitation and the installer's option to keep running after logout.
 
@@ -114,6 +131,32 @@ Tell the person:
 - Quiet hours are midnight to 8 AM by default. They can ask their agent to change the schedule or stop the alerts.
 
 Provide the exact command to stop the job, using the chosen Python and an absolute script path. Explain that `uninstall` keeps their saved connection; `uninstall --delete-data` also removes saved keys. Do not delete data unless requested.
+
+## Update an existing installation
+
+1. Inspect the existing checkout and scheduled job before updating. Preserve local
+   changes and saved settings. For Git, update the checkout without overwriting
+   local changes; for a ZIP, extract the new version into a new permanent folder.
+   Use latest `main` unless a specific release tag was requested.
+2. Recover the original interpreter and data-folder paths from this tool's
+   launchd arguments/environment, systemd service, cron command, or Windows task
+   action. Read only the relevant command/path fields; do not dump credentials or
+   saved-data files. On Windows, use the sibling `python.exe` for interactive
+   commands when the task names `pythonw.exe`. If no job is installed, reuse a
+   known custom data path; otherwise use the documented defaults.
+3. If checks were running, run `install` with that interpreter and data folder,
+   invoking **the script in the updated checkout**, not the installed copy named
+   in the scheduler. Use `--data-dir` before `install` when needed. Running the
+   installed copy would reinstall old code. If checks were intentionally removed,
+   a source-only update should leave them off unless enabling them was requested.
+4. Verify the installed script's `--version` against the updated checkout, or
+   compare their hashes. Run `status` and confirm installation's scheduled-check
+   verification passed. A green status alone does not prove the code was updated.
+   Existing baselines remain intact; verification may send a real stress alert,
+   including a catch-up for today, even during quiet hours.
+
+If the installed command or data path cannot be determined, resolve that before
+replacing an active job. Do not guess a new data folder and disconnect the person.
 
 ## When something goes wrong
 

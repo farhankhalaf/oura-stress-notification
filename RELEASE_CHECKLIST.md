@@ -10,8 +10,9 @@ GitHub URL and say "Set this up", then receive a test notification on their phon
 with automatic checks running. A working API call or a Telegram Web receipt is
 not sufficient for this acceptance check.
 
-- Start from the public README and its copyable agent request, on a fresh account
-  or clean machine. Follow AGENTS.md without unexplained developer steps.
+- Start from the public README and its exact copyable agent request, including
+  "Follow its AGENTS.md", on a fresh account or clean machine. Follow the guide
+  without unexplained developer steps.
 - Confirm the agent handles downloading, Python selection, setup and verification,
   including a path that does not require Git.
 - Record where the person needed account sign-in, consent or private key entry,
@@ -24,6 +25,15 @@ not sufficient for this acceptance check.
   manually triggered alert; it does not replace this person's real-device check.
 - Confirm automatic checks, a simple way to change quiet hours, and a clear way
   to stop the alerts. Record time and assistance rather than estimating them.
+- Separately observe the public tool through an ordinary day: its own scheduled
+  check must notice a natural increase in Oura's recorded daily stress and send
+  a notification that the owner confirms on the physical phone. Do not force a
+  baseline change or manually send the alert. Record observed sync/check/arrival
+  times where available; do not infer physiological onset from an API total.
+
+**Still pending:** a fresh nontechnical person's full setup and the ordinary-day
+natural-increase check above. A manually triggered phone alert does not pass the
+latter. The 0.2.2 beta does not claim either has been completed.
 
 **Phone delivery confirmed on 2026-10-11:** Farhan saw the dedicated bot's alert
 in the notification list on his physical iPhone's lock screen, outside Telegram.
@@ -61,9 +71,45 @@ complete agent-led setup remains untested; this was an assisted existing account
 
 | Date | Version | Who | Platform | Result |
 |---|---|---|---|---|
+| 2026-10-11 | 0.2.2 beta | Farhan + Codex | macOS automated checks | Silent first-reading baseline implemented with explicit state migration. Automated regressions cover first reads, established no-data mornings, retries, quiet-hours verification, reconnects and date changes. No new live setup or phone alert was sent. Fresh-user setup, natural automatic phone delivery, transient banner, macOS logout/login, access revocation, live Linux scheduling and any live Windows setup remain untested. Final automated and review results are recorded below; see the release for the published commit and CI result. |
 | 2026-10-10 | 0.1.0 | Farhan + Codex | macOS 26.5.2 (arm64) | Passed the tested macOS setup and recovery paths after the live-tested fixes; later review-driven fixes are unit-tested only: fresh app, Telegram pairing/delivery, automatic and pasted callbacks, real stress read, launchd startup, forced refresh and spent-token recovery. 80 tests pass on both local Python versions after follow-up review fixes. Exceptions: assisted existing account without timing; logout/login and revocation await approval; live Linux scheduling not tested. |
 | 2026-10-10 | 0.2.0 | Farhan + Codex | macOS, Linux and Windows CI | 112 tests pass on all seven CI targets, including native Windows permissions, locking, scheduler lifecycle and full scheduler installation with synthetic API responses. Live Windows account setup, standard-user installation, logout/login and phone delivery not performed. Opus 5.5 proposal review: 75 then 87 at the round limit; final code and both GIFs light-reviewed at xhigh: 85. Supported fixes were tested after review, without another model round. Demos use example data. |
 | 2026-10-11 | 0.2.1 | Farhan + Codex | macOS and physical iPhone; Linux/Windows CI | Ring profile picture uploaded, read back and visually verified. The 123-test suite passed both local Python versions and all seven CI targets on 84dc019, with expected platform-specific skips. Farhan confirmed a manually triggered real-data alert on the physical iPhone lock screen, outside Telegram, then supplied screenshot evidence showing the message and avatar. The README GIF now combines cropped real notification and Oura screenshots. Transient banner and continuous recording remain unverified. Assisted existing account, no fresh-user timing, no natural stress-increase event observed during this check. Earlier live-platform deviations remain. |
+
+### 0.2.2 beta validation
+
+The first successful check with valid stress data now records a new installation's
+starting point silently. Established and legacy installations preserve their
+baseline, including after no-data checks and failed sends. New-day behavior stays
+unchanged. This change has automated coverage only.
+
+The full suite discovers 137 tests and passes on both local interpreters
+(`/opt/homebrew/bin/python3` 3.14.4 and `/usr/bin/python3` 3.9.6), with 10 expected
+platform skips each. The native Windows installation fixture now supplies positive
+stress data and rejects every Telegram call, verifying silent seeding in the actual
+scheduled-command path when run on Windows CI.
+
+The proposal received two Opus 5.5 deep-review rounds at requested max effort and
+standard speed, scoring 86 then 88. It reached its two-round limit, not convergence.
+Supported final findings were incorporated into the implementation: explicit marker
+preservation across no-data checks, tests for that path, source-checkout update
+commands and installed-version verification, conditional setup wording, qualified
+live-test history, and reproducible outlined social-preview artwork.
+
+The final implementation received one Opus 5.5 light-review round at requested
+xhigh effort and reported standard speed, scoring 91/100 with no blocking findings.
+Its two low-severity documentation findings were resolved by recording this result
+and cleaning up the historical proposal. Those text corrections were checked by
+the host after review. The reviewed code and media were unchanged. See the
+[v0.2.2 release](https://github.com/fkb032/oura-stress-notification/releases/tag/v0.2.2)
+for its final commit and CI result.
+
+Live evidence predates this change: macOS setup/recovery ran on 0.1.0 on October 10;
+later recovery fixes have automated coverage. The October 11 lock-screen delivery
+used the 0.2.1 formatter before commit `6b139d9` shortened its headline. Neither the
+shortened wording nor the new baseline behavior has been delivered live in this run.
+Windows evidence remains synthetic CI on administrator runners, not a live account
+setup. The proposal and implementation detail are in [the beta release plan](docs/BETA_RELEASE_PROPOSAL.md).
 
 ### 2026-10-11 physical iPhone delivery
 

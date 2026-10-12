@@ -119,6 +119,7 @@ class Base(unittest.TestCase):
 
 class AlertRuleTests(Base):
     def test_first_increase_of_day(self):
+        self.set_state(baseline_initialized=True)
         self.http.stress = [(200, stress_body(today_item(900)))]
         self.assertEqual(self.check(), 0)
         self.assertEqual(len(self.http.sent), 1)
@@ -157,6 +158,7 @@ class AlertRuleTests(Base):
         self.assertEqual(self.state()["last_stress_high"], 600)
 
     def test_sub_minute_values_round_up_to_one(self):
+        self.set_state(baseline_initialized=True)
         self.http.stress = [(200, stress_body(today_item(30)))]
         self.check()
         self.assertIn("Oura recorded high stress</b>\n\n", self.http.sent[0])
@@ -167,6 +169,7 @@ class AlertRuleTests(Base):
         self.assertIn("+1 min (1 min today)", self.http.sent[1])
 
     def test_min_increase_setting_batches_small_increases(self):
+        self.set_state(baseline_initialized=True)
         config = json.loads(self.paths.config.read_text())
         config["settings"] = {"min_increase_minutes": 10}
         ost.write_json_private(self.paths.config, config)
@@ -180,6 +183,7 @@ class AlertRuleTests(Base):
         self.assertEqual(self.state()["last_stress_high"], 600)
 
     def test_send_failure_keeps_baseline_and_records_delivery_error(self):
+        self.set_state(baseline_initialized=True)
         self.http.stress = [(200, stress_body(today_item(900)))]
         self.http.telegram_ok = False
         self.assertEqual(self.check(), 0)
@@ -193,6 +197,7 @@ class AlertRuleTests(Base):
         self.assertIsNone(self.state()["delivery_error"])
 
     def test_picks_todays_record_regardless_of_order(self):
+        self.set_state(baseline_initialized=True)
         self.http.stress = [(200, stress_body(
             {"day": "2026-10-10", "stress_high": 7000}, today_item(600),
             {"day": "2026-10-08", "stress_high": 5000}))]
@@ -217,6 +222,181 @@ class AlertRuleTests(Base):
         self.check()
         self.assertEqual(self.http.sent, [])
         self.assertEqual(self.state()["last_data_day"], "2026-10-09")
+        self.assertIs(self.state()["baseline_initialized"], True)
+        self.http.stress = [(200, stress_body(today_item(900)))]
+        self.check()
+        self.assertEqual(len(self.http.sent), 1)
+        self.assertIn("Oura recorded high stress</b>", self.http.sent[0])
+
+
+class InitialBaselineTests(Base):
+    def test_positive_first_read_is_silent_then_increases_alert(self):
+        for seconds, count in ((2700, 0), (2700, 0), (3300, 1)):
+            self.http.stress = [(200, stress_body(today_item(seconds)))]
+            self.assertEqual(self.check(), 0)
+            self.assertEqual(len(self.http.sent), count)
+            self.assertEqual(self.state()["last_stress_high"], seconds)
+            self.assertIs(self.state()["baseline_initialized"], True)
+        self.assertIn("+10 min (55 min today)", self.http.sent[0])
+
+    def test_verification_seeds_silently_during_quiet_hours(self):
+        self.http.stress = [(200, stress_body(today_item(900)))]
+        self.assertEqual(ost.run_check(self.paths, now=NOON.replace(hour=0, minute=30),
+                                      verify=True), 0)
+        self.assertEqual(self.http.sent, [])
+        self.assertEqual(self.state()["last_stress_high"], 900)
+        self.assertIs(self.state()["baseline_initialized"], True)
+        self.assertEqual(ost.read_last_run(self.paths)["outcome"], "ok")
+
+    def test_no_data_across_midnight_waits_for_first_valid_read(self):
+        tomorrow = NOON + dt.timedelta(days=1)
+        for now, payload in ((NOON, stress_body()),
+                             (tomorrow, stress_body({"day": "2026-10-10", "stress_high": None}))):
+            self.http.stress = [(200, payload)]
+            self.check(now)
+            self.assertIs(self.state()["baseline_initialized"], False)
+        self.http.stress = [(200, stress_body({"day": "2026-10-10", "stress_high": 900}))]
+        self.check(tomorrow)
+        self.assertEqual(self.http.sent, [])
+        self.assertEqual(self.state()["last_stress_high"], 900)
+        self.assertIs(self.state()["baseline_initialized"], True)
+
+    def test_api_error_does_not_consume_initialization(self):
+        self.http.stress = [(500, b"{}")]
+        self.assertEqual(self.check(), 1)
+        self.assertFalse(ost.baseline_initialized(self.state()))
+        self.http.stress = [(200, stress_body(today_item(900)))]
+        self.assertEqual(self.check(), 0)
+        self.assertEqual(self.http.sent, [])
+        self.assertEqual(self.state()["last_stress_high"], 900)
+        self.assertIs(self.state()["baseline_initialized"], True)
+
+    def test_threshold_accumulates_from_silent_seed(self):
+        config = ost.load_config(self.paths)
+        config["settings"] = {"min_increase_minutes": 10}
+        ost.write_json_private(self.paths.config, config)
+        for seconds, baseline, count in ((900, 900, 0), (1200, 900, 0), (1500, 1500, 1)):
+            self.http.stress = [(200, stress_body(today_item(seconds)))]
+            self.check()
+            self.assertEqual(self.state()["last_stress_high"], baseline)
+            self.assertEqual(len(self.http.sent), count)
+
+    def test_established_morning_without_data_preserves_initialization(self):
+        for marker in ({"baseline_initialized": True}, {}):
+            with self.subTest(marker=marker):
+                self.set_state(last_date="2026-10-08", last_stress_high=2700, **marker)
+                self.http.sent.clear()
+                self.http.stress = [(200, stress_body())]
+                self.check()
+                self.assertIs(self.state()["baseline_initialized"], True)
+                self.http.stress = [(500, b"{}")]
+                self.assertEqual(self.check(), 1)
+                self.assertIs(self.state()["baseline_initialized"], True)
+                self.http.stress = [(200, stress_body())]
+                ost.run_check(self.paths, now=NOON, verify=True)
+                self.assertIs(self.state()["baseline_initialized"], True)
+                self.http.stress = [(200, stress_body(today_item(900)))]
+                self.check()
+                self.assertEqual(len(self.http.sent), 1)
+                self.assertIn("Oura recorded high stress</b>", self.http.sent[0])
+
+    def test_next_day_after_seed_alerts_normally(self):
+        self.http.stress = [(200, stress_body(today_item(900)))]
+        self.check()
+        self.http.stress = [(200, stress_body({"day": "2026-10-10", "stress_high": 600}))]
+        self.check(NOON + dt.timedelta(days=1))
+        self.assertEqual(len(self.http.sent), 1)
+        self.assertIn("Oura recorded high stress</b>", self.http.sent[0])
+
+    def test_legacy_baseline_and_failed_delivery_are_preserved(self):
+        for baseline in (0, 900):
+            with self.subTest(baseline=baseline):
+                self.set_state(last_date="2026-10-09", last_stress_high=baseline)
+                self.http.sent.clear()
+                self.http.telegram_ok = False
+                self.http.stress = [(200, stress_body(today_item(1500)))]
+                self.check()
+                self.assertEqual(self.state()["last_stress_high"], baseline)
+                self.assertIs(self.state()["baseline_initialized"], True)
+                self.http.telegram_ok = True
+                self.http.stress = [(200, stress_body(today_item(1500)))]
+                self.check()
+                self.assertEqual(len(self.http.sent), 1)
+                self.assertEqual(self.state()["last_stress_high"], 1500)
+
+    def test_verification_on_existing_install_does_not_reseed(self):
+        self.set_state(baseline_initialized=True, last_date="2026-10-09", last_stress_high=900)
+        self.http.stress = [(200, stress_body(today_item(600)))]
+        ost.run_check(self.paths, now=NOON, verify=True)
+        self.assertEqual(self.state()["last_stress_high"], 900)
+        self.http.stress = [(200, stress_body(today_item(1200)))]
+        ost.run_check(self.paths, now=NOON, verify=True)
+        self.assertIn("+5 min", self.http.sent[0])
+
+    def test_only_literal_true_initializes_an_explicit_marker(self):
+        for value in (False, None, 0, 1, "true", [], {}):
+            with self.subTest(value=value):
+                state = {"baseline_initialized": value, "last_date": "2026-10-09", "last_stress_high": 0}
+                self.assertEqual(ost.plan_alert(900, state, "2026-10-09"), (None, 900))
+        self.assertTrue(ost.baseline_initialized({"baseline_initialized": True}))
+
+    def test_legacy_date_and_baseline_are_strict(self):
+        for day in (None, 123, "20261009", "2026-W41-5", "2026-02-30", "bad"):
+            self.assertFalse(ost.baseline_initialized({"last_date": day, "last_stress_high": 0}))
+        for value in (None, True, False, -1, "0", 0.0):
+            self.assertFalse(ost.baseline_initialized({"last_date": "2026-10-09", "last_stress_high": value}))
+        self.assertTrue(ost.baseline_initialized({"last_date": "2026-10-09", "last_stress_high": 0}))
+
+    def test_interactive_reads_and_reconnect_keep_marker(self):
+        config = ost.load_config(self.paths)
+        for marker in (False, True):
+            with self.subTest(marker=marker):
+                self.set_state(baseline_initialized=marker)
+                with mock.patch.object(ost, "wait_for_redirect", return_value="fake-code"), \
+                        mock.patch.object(ost, "token_request", return_value={
+                            "access_token": "fake-access", "refresh_token": "fake-refresh", "expires_in": 3600}):
+                    ost.connect_oura(self.paths, config)
+                self.assertIs(self.state()["baseline_initialized"], marker)
+                with mock.patch.object(ost, "read_oura_locked", return_value=900):
+                    ost.read_stress_now(self.paths, config)
+                self.assertIs(self.state()["baseline_initialized"], marker)
+                with mock.patch.object(ost, "read_oura_locked", side_effect=ost.ReconnectNeeded("test rejection")):
+                    with self.assertRaises(ost.ReconnectNeeded):
+                        ost.read_stress_now(self.paths, config)
+                self.assertIs(self.state()["baseline_initialized"], marker)
+
+    def test_established_marker_survives_failures_and_pause(self):
+        errors = (ost.OuraError("synthetic failure"), ost.RateLimited("synthetic limit", 60),
+                  ost.ReconnectNeeded("synthetic rejection"), ost.RunTimeout("synthetic timeout"))
+        for error in errors:
+            with self.subTest(error=type(error).__name__):
+                self.set_state(baseline_initialized=True, last_date="2026-10-09", last_stress_high=900)
+                with mock.patch.object(ost, "read_oura_locked", side_effect=error):
+                    self.assertEqual(self.check(), 1)
+                self.assertIs(self.state()["baseline_initialized"], True)
+                self.assertEqual(self.state()["last_stress_high"], 900)
+        self.set_state(baseline_initialized=True, needs_reconnect=True, reconnect_notice_sent=True)
+        self.assertEqual(self.check(), 1)
+        self.assertIs(self.state()["baseline_initialized"], True)
+
+    def test_setup_explanation_is_conditional_and_releases_lock_before_install(self):
+        for marker in (False, True):
+            with self.subTest(marker=marker):
+                self.set_state(baseline_initialized=marker)
+                self.stdout.seek(0)
+                self.stdout.truncate()
+                def installation(paths, config):
+                    with ost.run_lock(paths) as acquired:
+                        self.assertTrue(acquired)
+                with mock.patch.object(ost, "setup_telegram"), \
+                        mock.patch.object(ost, "setup_oura"), \
+                        mock.patch.object(ost, "read_stress_now"), \
+                        mock.patch.object(ost, "ask_yes", return_value=True), \
+                        mock.patch.object(ost, "install_schedule", side_effect=installation):
+                    self.assertEqual(ost.cmd_setup(self.paths, None), 0)
+                text = self.stdout.getvalue()
+                self.assertEqual("starting point" in text, not marker)
+                self.assertEqual("saved alert history is kept" in text, marker)
 
 
 class QuietHoursTests(Base):
@@ -545,6 +725,8 @@ class SafetyTests(Base):
         self.http.stress = [(200, stress_body(today_item(120)))]
         self.assertEqual(self.check(), 0)
         self.assertEqual(self.state()["last_stress_high"], 120)
+        self.assertEqual(self.http.sent, [])
+        self.assertIs(self.state()["baseline_initialized"], True)
 
     def test_commands_in_messages_are_absolute(self):
         with mock.patch.dict(os.environ, {"OURA_STRESS_HOME": ""}):

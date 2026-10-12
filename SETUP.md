@@ -18,11 +18,12 @@ Open **Settings > Notifications > Telegram**, turn on **Allow Notifications**, a
 
 Open your new bot in Telegram and press **Start** during pairing. Then put Telegram in the background: **lock your iPhone** to test Lock Screen alerts, or **go to the Home Screen** to test Banners. Have your agent send the test.
 
-Expect **🧪 Test from Oura stress alerts. Telegram works.** Confirm that it appears on the lock screen or as an iOS banner while Telegram is in the background. An in-app Telegram banner or a message on the computer does not pass this check. Real stress alerts use the wording shown in the real notification capture in [README.md](README.md).
+Expect **🧪 Test from Oura stress alerts. Telegram works.** Confirm that it appears on the lock screen or as an iOS banner while Telegram is in the background. An in-app Telegram banner or a message on the computer does not pass this check. The [README demo](README.md) shows the short stress headline used after a zero daily baseline. With a positive baseline, alerts say **More high stress recorded** and include added minutes, including the first alert after a mid-day setup.
 
 ## After setup
 
 - The program checks every **5 minutes** and sends a message when today's high-stress total increases.
+- A new installation silently records its first valid stress total as a starting point. This happens once. If there is no data yet, it waits for the first valid reading, even on a later day. A measured zero counts. Normal new-day alerts resume from zero each day after initialization.
 - Quiet hours default to **midnight to 8 AM**. Ask your agent to change them or make alerts less frequent.
 - Keep the Oura app syncing your ring. Alerts describe **what Oura recorded**, with a delay; they are not an instant stress alarm.
 - Ask your agent **"Stop the Oura alerts"** to remove the background job. Your saved connection can be kept for later.
@@ -137,7 +138,18 @@ Run these from the project folder in Terminal. On Windows use PowerShell and rep
 | Turn it off | `python3 oura_stress_telegram.py uninstall` |
 | Turn it off and delete saved keys | `python3 oura_stress_telegram.py uninstall --delete-data` |
 
-If you move or update the project folder, run `python3 oura_stress_telegram.py install` again.
+If you move or update the project folder, run `python3 oura_stress_telegram.py install`
+from the **updated project folder**, using the same interpreter and saved-data
+folder as the existing job. Do not run the old installed copy to update itself.
+Check the installed script's `--version` against the new source afterward, then
+verify `status` and the scheduled check. Existing alert history is preserved;
+installation verification can send a catch-up alert, even during quiet hours.
+If automatic checks were intentionally removed, leave them off unless you want
+to enable them again. Agent-specific steps are in [AGENTS.md](AGENTS.md#update-an-existing-installation).
+
+Downloads and ordinary updates use the latest `main` branch. [Release tags](https://github.com/fkb032/oura-stress-notification/releases)
+provide fixed snapshots when you want a specific version. Extract ZIP updates into
+a new permanent folder rather than overwriting an existing one.
 
 ## Settings
 
@@ -154,9 +166,10 @@ python3 oura_stress_telegram.py settings --min-increase 15
 
 ## Good to know
 
-- **Alerts are not instant.** Your ring syncs through the Oura phone app, and Oura updates stress about every 15 minutes while you are awake and still. A message usually arrives 15 to 30 minutes after the stress, sometimes later.
+- **Alerts are not instant.** Timing depends on your ring syncing through the phone app and Oura making the reading available. Alerts can arrive well after the stress; there is no fixed delivery-delay guarantee.
 - **It reports what Oura recorded**, not a live reading. A message after a quiet stretch can describe stress from earlier in the day.
 - **The default is sensitive:** any new high stress sends a message. Use `--min-increase` if that is too many.
+- **Updates and reconnects keep your alert history.** Upgrades preserve old installations' behavior, including an old installation that has not received data yet. Deleting or losing the state file starts again with a silent baseline; a corrupt state file is treated the same way.
 - **If checks keep failing**, you get a Telegram message saying so. If Oura ever stops accepting the saved login, the message includes the exact command to fix it. It cannot tell you if Telegram itself is unreachable or the computer is off, so run `status` now and then.
 - **Use a new bot just for this.** If another program already reads the same bot's messages, setup will tell you to create a new one.
 - **This is not medical advice** and is not affiliated with Oura or Telegram.
@@ -186,20 +199,23 @@ python3 oura_stress_telegram.py settings --min-increase 15
 
 ## Project status
 
-Version 0.2.1 includes a default ring avatar and experimental native Windows
-support. Live Windows account setup, normal-user installation, logout/login and
-Windows-to-phone delivery remain untested. Automated Windows checks exercise native file permissions, locking,
+Version 0.2.2 is an early beta with a silent first-reading baseline, a default ring
+avatar, and experimental native Windows support. The new baseline behavior has
+automated coverage only. Live Windows account setup, normal-user installation,
+sign-out/sign-in and Windows-to-phone delivery have not been tested. Automated
+Windows checks exercise native file permissions, locking,
 PowerShell recovery commands and real Task Scheduler registration and execution.
 A fresh nontechnical user's complete agent-led setup is also unverified.
 
-On October 11, 2026, a manually triggered alert from the Mac was confirmed on the
+On October 11, 2026, a manually triggered alert using the 0.2.1 formatter before
+the headline was shortened was confirmed on the
 physical iPhone lock screen and captured in a screenshot. The [README demo](docs/DEMOS.md)
 shows a full phone walkthrough using that notification and real Home Screen and
 Oura captures. The lock screen was cleaned, covered wallpaper was reconstructed,
 Home Screen calendar titles were made generic, and interactions and transitions
 were simulated. The calendar layout, event times and app notification counts remain.
 The notification headline was shortened to "Oura recorded high stress" to match
-the current first-alert wording. Graph points and Oura stress readings are unchanged.
+the short headline used after a zero daily baseline. Graph points and Oura stress readings are unchanged.
 The walkthrough compresses the time between captures.
 It is an edited walkthrough, not a continuous recording or an instant-alert claim.
 

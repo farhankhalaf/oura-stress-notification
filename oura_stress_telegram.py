@@ -48,7 +48,7 @@ from pathlib import Path
 from typing import Dict, Iterator, Optional, Tuple
 
 APP = "oura-stress-telegram"
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 SCRIPT_NAME = "oura_stress_telegram.py"
 BOT_PHOTO_NAME = "bot-avatar.jpg"
 PROJECT_URL = "https://github.com/fkb032/oura-stress-notification"
@@ -906,14 +906,32 @@ def minutes(seconds: int) -> int:
     return max(1, seconds // 60)
 
 
+def baseline_initialized(state: dict) -> bool:
+    """Recognize new state explicitly and preserve established pre-marker installs."""
+    if "baseline_initialized" in state:
+        return state["baseline_initialized"] is True
+    day = state.get("last_date")
+    value = state.get("last_stress_high")
+    if not isinstance(day, str) or type(value) is not int or value < 0:
+        return False
+    try:
+        # Require the same canonical date on all supported Python versions.
+        return dt.date.fromisoformat(day).isoformat() == day
+    except ValueError:
+        return False
+
+
 def plan_alert(stress_high: Optional[int], state: dict, today: str,
                min_increase_minutes: int = 0) -> Tuple[Optional[str], int]:
-    """Return (message or None, current baseline).
+    """Return (message or None, baseline to keep without a new delivery).
 
-    The baseline is today's highest stress_high the user was already told about. It
-    starts at 0 each day and only moves up. Any increase (or one of at least
-    min_increase_minutes, when set) produces one message.
+    A new install silently records its first valid total. Thereafter the baseline
+    is today's highest stress_high already accounted for. It starts at 0 each new
+    day and only moves up. Any increase (or one of at least min_increase_minutes,
+    when set) produces one message.
     """
+    if stress_high is not None and not baseline_initialized(state):
+        return None, stress_high
     baseline = 0
     if state.get("last_date") == today:
         stored = state.get("last_stress_high", 0)
@@ -1098,7 +1116,11 @@ def _run_check_locked(paths: Paths, now: Optional[dt.datetime], verify: bool) ->
             # The baseline stays, so a later check today retries any increase
             # that is still outstanding.
             outcome = "degraded: the Telegram alert failed"
+    # None must never downgrade an established or legacy install. Persist false
+    # for a new no-data run so its date/zero bookkeeping cannot look like legacy.
+    initialized = baseline_initialized(state) or stress_high is not None
     state.update(last_date=today, last_stress_high=new_baseline, last_check=now_iso(),
+                 baseline_initialized=initialized,
                  consecutive_failures=0, failure_alerted=False, last_error=None,
                  needs_reconnect=False, reconnect_notice_sent=False, reconnect_reason=None,
                  next_oura_request_at=None)
@@ -2164,6 +2186,15 @@ def cmd_setup(paths: Paths, args) -> int:
     setup_oura(paths, config)
     heading("Step 3 of 3: Check and schedule")
     read_stress_now(paths, config)
+    with interactive_lock(paths):
+        initialized = baseline_initialized(load_state(paths))
+    if initialized:
+        say("Your saved alert history is kept. The installation check may send "
+            "an alert for stress recorded since the last check, even during quiet hours.")
+    else:
+        say("The first check with stress data records a starting point without "
+            "sending a stress alert. Alerts begin with later increases. If there "
+            "is no data yet, this starts when the first reading becomes available.")
     if ask_yes("Check automatically in the background from now on?"):
         install_schedule(paths, config)
     else:

@@ -403,7 +403,8 @@ class NativeWindowsTests(unittest.TestCase):
         fixture = '''
 def _fixture_http(method, url, **kwargs):
     if method == "GET" and url.startswith(OURA_STRESS_URL):
-        return 200, {}, b'{"data": [], "next_token": null}'
+        payload = {"data": [{"day": dt.datetime.now().astimezone().date().isoformat(), "stress_high": 900}]}
+        return 200, {}, json.dumps(payload).encode("utf-8")
     raise AssertionError("No live API calls are allowed in this fixture")
 http_request = _fixture_http
 
@@ -430,6 +431,8 @@ def default_paths():
                 module.install_schedule(self.paths, config, verify=True)
                 self.assertTrue(module.installed_script_path().is_file())
                 self.assertEqual(module.read_last_run(self.paths)["outcome"], "ok")
+                self.assertIs(module.load_state(self.paths)["baseline_initialized"], True)
+                self.assertEqual(module.load_state(self.paths)["last_stress_high"], 900)
                 task = module.windows_task("query")
                 self.assertTrue(task["enabled"])
                 self.assertIn(module.read_last_run(self.paths)["run_id"], task["xml"])

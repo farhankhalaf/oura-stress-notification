@@ -79,6 +79,59 @@ notification headline and generic calendar titles. Review the full loop
 on light and dark backgrounds, including the blank opening, notification arrival,
 each visible tap, both app transitions and the loop seam.
 
+## Sharing assets
+
+- [MP4 walkthrough](images/demo-walkthrough.mp4): H.264, yuv420p, 652 x 1380,
+  15 fps, 259 frames, 17.266667 seconds, no audio, fast-start playback.
+- [Social preview](images/social-preview.png): 1280 x 640, 166,157 bytes, intended
+  for the GitHub repository link preview. It combines the existing generated ring
+  avatar with the edited real notification crop. It is labeled an unofficial tool
+  and an edited demo. No new Oura UI or reading was generated.
+
+The MP4 uses the same source frames and 4.67-second clean notification hold as the
+accepted GIF, composited over a dark outer background. The tiny duration difference
+comes from GIF centisecond rounding. The README GIF was not changed for this export.
+Both new assets are included in the repository and the beta release downloads.
+
+After rendering the walkthrough's source frames as above, export the MP4 with
+ffmpeg 8.1 (libx264):
+
+```sh
+ffmpeg -y -framerate 15 -i /path/to/scratch/frames/%04d.png \
+  -f lavfi -i color=c=0x0d1117:s=652x1380:r=15 \
+  -filter_complex '[1:v][0:v]overlay=shortest=1:format=auto,format=yuv420p[v]' \
+  -map '[v]' -an -c:v libx264 -preset slow -crf 18 -r 15 -frames:v 259 \
+  -map_metadata -1 -movflags +faststart /path/to/repo/docs/images/demo-walkthrough.mp4
+```
+
+The [social-preview SVG](images/social-preview.svg) embeds its image assets and
+outlines every letter, so it renders without installed fonts. In a scratch Node
+folder, install `@resvg/resvg-js@2.6.2` and render it:
+
+```sh
+npm install @resvg/resvg-js@2.6.2
+node --input-type=module - /path/to/repo/docs/images/social-preview.svg /path/to/repo/docs/images/social-preview.png <<'JS'
+import fs from 'node:fs';
+import { Resvg } from '@resvg/resvg-js';
+fs.writeFileSync(process.argv[3], new Resvg(fs.readFileSync(process.argv[2])).render().asPng());
+JS
+```
+
+To change the card composition, [render_social_preview.py](images/render_social_preview.py)
+builds its SVG using `fonttools==4.66.1` in a development-only virtual environment.
+Pass the two font files as arguments: Arial.ttf and Arial Bold.ttf. The renderer
+pins their SHA-256 hashes to `525979822591a3447cfc49d943d6f7683508e25543407871c0ed8fed05fd2bd9`
+and `d72db21f9242aedd6b917d8549ad5921766b24d5f8d0becfda2ff4c620b3c2e0` respectively.
+The original fonts are not bundled; the committed outlined SVG is the portable
+render source. None of these development dependencies is needed to run the tool.
+
+Published asset SHA-256:
+
+```text
+social-preview.png     1606a12af7949d1559b6a426172697a730bc30f96085c78ab2c9e437f66c8b49
+demo-walkthrough.mp4   35b8e149572b96191b4a9767e3de0940b446d49fedc9351c8a1cf338f6234149
+```
+
 ## Earlier versions
 
 The [stacked real-screenshot explainer](images/demo-real.gif) was replaced because
