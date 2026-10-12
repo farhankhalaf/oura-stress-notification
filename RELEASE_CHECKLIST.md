@@ -119,6 +119,34 @@ shortened wording nor the new baseline behavior has been delivered live in this 
 Windows evidence remains synthetic CI on administrator runners, not a live account
 setup. The proposal and implementation detail are in [the beta release plan](docs/BETA_RELEASE_PROPOSAL.md).
 
+### 2026-10-11 first stress period demo
+
+The README GIF and current MP4 now use example stress readings within the captured
+app layout: earlier graph points remain below Stressed, only the final rise enters
+that band, and the plot ends there. Oura Today and the detail card both show 15m
+stressed, with matching one-hour relative-time labels. This is an illustrative
+first-period example, not a new live test or the owner's measured data.
+
+The calendar keeps its event times, colors and notification counts. Only its titles
+are replaced with "Finish Monday's slides", "Pick up Thai takeout" and
+"Read Project Hail Mary". Pixel comparisons confirm the surrounding capture is
+unchanged outside the graph, reading labels and event-title areas. The notification
+wording, 4.67-second clean hold and complete animation timing are preserved.
+The application code, saved data and real calendar were not changed.
+
+The v0.2.2 source tag and its original MP4 remain the original release snapshot.
+The updated MP4 is an additional media download, `demo-first-stress.mp4`, with
+current provenance and hashes in [DEMOS.md](docs/DEMOS.md).
+
+Opus 5.5 reviewed the visual changes at requested xhigh effort and reported standard
+speed. The first acceptance pass scored 82 and agreed with the requested changes,
+while identifying a timing mismatch and minor graph/provenance refinements. The
+corrected graph uses native quarter-hour spacing, places its first stressed sample
+at 13:00-13:15 before the 13:28 notification, and aligns its gridlines and one-hour
+labels. A targeted final acceptance scored 93: "AGREE. All five prior findings are
+fixed, and I found no new material defect." The final media bytes were kept unchanged
+after that acceptance. Only this validation record was added afterward.
+
 ### 2026-10-11 physical iPhone delivery
 
 A manually triggered alert used the current Oura API reading and the program's

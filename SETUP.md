@@ -215,7 +215,9 @@ Oura captures. The lock screen was cleaned, covered wallpaper was reconstructed,
 Home Screen calendar titles were made generic, and interactions and transitions
 were simulated. The calendar layout, event times and app notification counts remain.
 The notification headline was shortened to "Oura recorded high stress" to match
-the short headline used after a zero daily baseline. Graph points and Oura stress readings are unchanged.
+the short headline used after a zero daily baseline. A later demo edit uses example
+graph points and matching 15-minute totals to show the day's first high-stress
+period. Calendar titles are fictional. These edits do not change actual Oura data.
 The walkthrough compresses the time between captures.
 It is an edited walkthrough, not a continuous recording or an instant-alert claim.
 

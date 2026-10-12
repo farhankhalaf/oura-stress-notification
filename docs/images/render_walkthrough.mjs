@@ -1,4 +1,4 @@
-// Full-phone walkthrough using real screen captures and simulated interactions.
+// Real screen captures with example stress readings and simulated interactions.
 // Development only. Run a scratch copy with @resvg/resvg-js installed.
 // Arguments: source directory containing walkthrough/, output directory.
 import { Resvg } from '@resvg/resvg-js';
@@ -113,8 +113,8 @@ fs.writeFileSync(path.join(out, 'timeline.json'), JSON.stringify({fps:FPS,second
   {at:0,label:'Clear lock screen'}, {at:1.5,label:'Real notification arrives'},
   {at:5.4,label:'Unlock swipe'},
   {at:6.05,label:'Home Screen'}, {at:7,label:'Tap Oura'}, {at:7.45,label:'Oura opens'},
-  {at:8.05,label:'Real Oura Today'}, {at:9.6,label:'Tap Stress'},
-  {at:10.05,label:'Daytime Stress navigation'}, {at:10.8,label:'Real Daytime Stress'},
+  {at:8.05,label:'Oura Today with example readings'}, {at:9.6,label:'Tap Stress'},
+  {at:10.05,label:'Daytime Stress navigation'}, {at:10.8,label:'First stress period example'},
   {at:14.5,label:'Screen sleeps and returns to lock screen'}
 ].map(phase => ({...phase, at: phase.at >= 5.4
   ? Math.round((phase.at + (EXTRA_HOLD - (CUT_END - CUT_START)) / FPS) * 100) / 100

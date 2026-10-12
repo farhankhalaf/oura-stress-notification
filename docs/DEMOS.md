@@ -6,9 +6,10 @@ The README demo stays inside one iPhone frame throughout:
 2. The real Telegram stress notification appears and stays visible for about five seconds.
 3. An unlock swipe directly after the notification.
 4. A simulated tap on the actual Oura Home Screen icon opens Oura Today.
-5. A simulated tap on Stress opens the real Daytime Stress screen.
+5. A simulated tap on Stress opens Daytime Stress, edited to show the first
+   high-stress period of an example day.
 
-<img src="images/demo-walkthrough.gif?v=76cffd8546ba" alt="Full iPhone walkthrough: notification arrives, unlock, tap Oura, then open Daytime Stress." width="420">
+<img src="images/demo-walkthrough.gif?v=48337b5dcbb8" alt="Full iPhone walkthrough: notification arrives, unlock, tap Oura, then open Daytime Stress." width="420">
 
 [Still image](images/demo-walkthrough.png)
 
@@ -17,26 +18,37 @@ The README demo stays inside one iPhone frame throughout:
 This is an edited walkthrough with simulated interactions, not a continuous screen
 recording. The notification is from the owner's physical iPhone screenshot.
 The Home Screen, Oura Today and Daytime Stress views were captured through iPhone
-Mirroring on the Mac on October 11, 2026. The Oura app screens and graph are real,
-with their original text, points, colors and readings. The navigation animation
-follows the native transition observed during capture.
+Mirroring on the Mac on October 11, 2026. The app layout, controls, colors and
+navigation come from those captures. The stress graph and matching numbers have
+been edited to show an example first high-stress period: earlier readings stay
+below Stressed, only the final rise enters that band, and the graph stops there.
+Samples use the native 15-minute spacing. The first stressed sample represents
+13:00-13:15, before the 13:28 notification and one hour before the 14:15 app view.
+Both Oura screens show 15 minutes stressed. Relative-time labels were changed to
+one hour ago. These are illustrative readings, not the owner's measured day.
+The example assumes checks were already running before the first increase; a
+new installation's initial baseline is still silent.
 
 The lock-screen notification was captured at 13:28. Its headline was edited to
 "Oura recorded high stress", removing the daily minute total to match the current
-first-alert wording. The later Home Screen and Oura captures show 14:12 and 14:15,
-when the total had reached one hour. The walkthrough compresses this passage of
-time without an intertitle. Oura readings were not changed to make the screens
-agree, and the demo does not imply an instant Oura reading or alert.
+short-headline wording. The Home Screen and Oura captures retain their 14:12 and
+14:15 clocks. This edited sequence compresses separate captures; their times and
+the example graph are not a measurement of detection or delivery delay. The demo
+does not imply an instant Oura reading or alert.
 The original preview spacing was retained, so the gap below the headline is wider
 and less body text is visible than a newly rendered alert may show.
 
 The empty lock screen was made from the same screenshot by removing notification
 cards and widgets and filling the covered wallpaper with image-generation cleanup.
 Its original clock, date, status bar and bottom controls were retained. The Home
-Screen calendar widget is kept, with generic event titles: "Plan the week",
-"Evening walk" and "Read and unwind". Its layout and event times are preserved.
+Screen calendar widget is kept, with fictional but specific event titles:
+"Finish Monday's slides", "Pick up Thai takeout" and "Read Project Hail Mary".
+Its layout, colors and event times are preserved.
 The actual app icons, positions, labels, notification badges and counts are retained.
-No Oura app UI was generated.
+Image-generation cleanup and precisely positioned graph samples are confined to
+the graph, associated displayed readings and calendar titles, composited into the
+original screenshots. The surrounding
+captured pixels are retained. No actual Oura account data or calendar was changed.
 Raw originals containing unrelated private information are not in this repository.
 
 The native movement and tag overlays were temporarily turned off for a clean graph
@@ -47,7 +59,8 @@ The launch-only snapshot omits the moving clock, battery and Dynamic Island usin
 the app's own background pixels; the held app view restores the original status
 bar directly. This avoids duplicated device overlays during the simulated zoom.
 GIF encoding uses a palette per frame and light lossy compression to reduce the
-download size. These presentation edits do not change stress data.
+download size. Only the demo images contain the example stress data; the tool's
+API data, alert rule and saved state are unchanged.
 
 The Telegram notification opens Telegram when tapped. The demo correctly unlocks
 and taps the separate Oura icon to open Oura. The original alert was manually
@@ -75,7 +88,7 @@ cp /path/to/scratch/frames/poster.png /path/to/repo/docs/images/demo-walkthrough
 ```
 
 All iPhone and app lettering is in the source images, including the edited
-notification headline and generic calendar titles. Review the full loop
+notification headline, example stress readings and fictional calendar titles. Review the full loop
 on light and dark backgrounds, including the blank opening, notification arrival,
 each visible tap, both app transitions and the loop seam.
 
@@ -88,10 +101,12 @@ each visible tap, both app transitions and the loop seam.
   avatar with the edited real notification crop. It is labeled an unofficial tool
   and an edited demo. No new Oura UI or reading was generated.
 
-The MP4 uses the same source frames and 4.67-second clean notification hold as the
-accepted GIF, composited over a dark outer background. The tiny duration difference
-comes from GIF centisecond rounding. The README GIF was not changed for this export.
-Both new assets are included in the repository and the beta release downloads.
+The current MP4 and GIF use the same source frames and 4.67-second clean notification
+hold, with dark outer margins in the MP4. The tiny duration difference comes from
+GIF centisecond rounding. This example-data revision is available as
+[demo-first-stress.mp4](https://github.com/fkb032/oura-stress-notification/releases/download/v0.2.2/demo-first-stress.mp4)
+in the beta downloads. The original release MP4 and tagged source archive retain
+the earlier captured readings for reproducibility. The social preview is unchanged.
 
 After rendering the walkthrough's source frames as above, export the MP4 with
 ffmpeg 8.1 (libx264):
@@ -125,11 +140,15 @@ and `d72db21f9242aedd6b917d8549ad5921766b24d5f8d0becfda2ff4c620b3c2e0` respectiv
 The original fonts are not bundled; the committed outlined SVG is the portable
 render source. None of these development dependencies is needed to run the tool.
 
-Published asset SHA-256:
+Current media and original release asset SHA-256:
 
 ```text
 social-preview.png     1606a12af7949d1559b6a426172697a730bc30f96085c78ab2c9e437f66c8b49
-demo-walkthrough.mp4   35b8e149572b96191b4a9767e3de0940b446d49fedc9351c8a1cf338f6234149
+demo-walkthrough.gif   48337b5dcbb8613fbc95a6e6faecc78e1beb0bff6631ce5d9ab4a16abb6cc139
+demo-first-stress.mp4 (also the repo docs/images/demo-walkthrough.mp4)
+                      853199ca747f30595eeca5cbaf268bb44fc5f893fb5b14d6c22b528ed4a9425a
+original v0.2.2 release demo-walkthrough.mp4
+                      35b8e149572b96191b4a9767e3de0940b446d49fedc9351c8a1cf338f6234149
 ```
 
 ## Earlier versions
