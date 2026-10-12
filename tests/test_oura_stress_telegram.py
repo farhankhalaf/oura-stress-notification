@@ -1131,7 +1131,9 @@ class OAuthTests(unittest.TestCase):
                 with urllib.request.urlopen(f"{base}?code=secret-code-999&state=good",
                                             timeout=5) as response:
                     self.assertIn(b"Connected", response.read())
-                self.assertTrue(done.is_set())
+                # Receiving the body does not synchronize with the server's
+                # subsequent completion signal. Wait for that thread explicitly.
+                self.assertTrue(done.wait(timeout=5))
                 self.assertEqual(result["code"], "secret-code-999")
             finally:
                 for server in servers:

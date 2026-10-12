@@ -104,6 +104,14 @@ the host after review. The reviewed code and media were unchanged. See the
 [v0.2.2 release](https://github.com/fkb032/oura-stress-notification/releases/tag/v0.2.2)
 for its final commit and CI result.
 
+The first publication CI run exposed an inherited callback-test race on macOS:
+the HTTP response could arrive before the handler set its completion event.
+The test now waits for that event with a timeout. A controlled delayed-signal
+reproduction demonstrated the old assertion failing and the corrected assertion
+passing. This test-only follow-up was made after light review; application code
+and media stayed unchanged. The complete suite was rerun on both local Python
+versions and the corrective push requires all seven CI targets before publication.
+
 Live evidence predates this change: macOS setup/recovery ran on 0.1.0 on October 10;
 later recovery fixes have automated coverage. The October 11 lock-screen delivery
 used the 0.2.1 formatter before commit `6b139d9` shortened its headline. Neither the
