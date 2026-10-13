@@ -26,7 +26,7 @@ Expect **🧪 Test from Stress Nudge. Telegram works.** Confirm that it appears 
 - A new installation silently records its first valid stress total as a starting point. This happens once. If there is no data yet, it waits for the first valid reading, even on a later day. A measured zero counts. Normal new-day alerts resume from zero each day after initialization.
 - Quiet hours default to **midnight to 8 AM**. Ask your agent to change them or make alerts less frequent.
 - Keep the Oura app syncing your ring. Alerts describe **what Oura recorded**, with a delay; they are not an instant stress alarm.
-- Ask your agent **"Stop the Oura alerts"** to remove the background job. Your saved connection can be kept for later.
+- Ask your agent **"Stop Stress Nudge"** to remove the background job. Your saved connection can be kept for later.
 
 ### Bot profile picture
 
