@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Oura stress alerts on Telegram.
+"""Stress Nudge: Telegram alerts when your Oura Ring records more high stress.
 
 Checks your Oura ring's daytime stress every few minutes and sends you a Telegram
 message when Oura records more time in high stress today.
@@ -47,11 +47,13 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Dict, Iterator, Optional, Tuple
 
+# APP names saved data, the installed copy and scheduler jobs; keep it stable.
 APP = "oura-stress-telegram"
+PRODUCT_NAME = "Stress Nudge"
 VERSION = "0.2.2"
 SCRIPT_NAME = "oura_stress_telegram.py"
 BOT_PHOTO_NAME = "bot-avatar.jpg"
-PROJECT_URL = "https://github.com/farhankhalaf/oura-stress-notification"
+PROJECT_URL = "https://github.com/farhankhalaf/stress-nudge"
 
 OURA_APPS_URL = "https://developer.ouraring.com/applications"
 OURA_AUTHORIZE_URL = "https://cloud.ouraring.com/oauth/authorize"
@@ -981,7 +983,7 @@ def reconnect_notice(paths: Paths, action: str = "connect-oura",
                "then press Allow." if action == "connect-oura" else "")
     explanation = ("Oura did not grant the Daily permission." if reason == "missing_daily_scope"
                    else f"Oura no longer accepts {what}.")
-    return (f"\u26A0\uFE0F <b>Oura stress alerts are paused:</b> {explanation}"
+    return (f"\u26A0\uFE0F <b>{PRODUCT_NAME} is paused:</b> {explanation}"
             "\n\nTo fix it, run this on your computer:\n"
             f"<code>{html.escape(command_for(action, paths))}</code>{consent}")
 
@@ -992,7 +994,7 @@ def record_failure(paths: Paths, config: dict, state: dict, reason: str) -> int:
     state.update(consecutive_failures=failures, last_error=redact(reason),
                  last_check=now_iso())
     if failures >= FAILURE_ALERT_THRESHOLD and not state.get("failure_alerted"):
-        text = (f"\u26A0\uFE0F <b>Oura stress alerts are having trouble</b> "
+        text = (f"\u26A0\uFE0F <b>{PRODUCT_NAME} is having trouble</b> "
                 f"({failures} checks in a row failed).\n\nLatest error: "
                 f"{html.escape(redact(reason))}\n\nFor details, run this on your computer:\n"
                 f"<code>{html.escape(command_for('status', paths))}</code>")
@@ -1102,7 +1104,7 @@ def _run_check_locked(paths: Paths, now: Optional[dt.datetime], verify: bool) ->
         return record_failure(paths, config, state, str(exc)), f"error: {exc}"
 
     if state.get("failure_alerted"):
-        send_telegram(config, "\u2705 Oura stress alerts are working again.", state)
+        send_telegram(config, f"\u2705 {PRODUCT_NAME} is working again.", state)
     message, baseline = plan_alert(stress_high, state, today,
                                    int(settings.get("min_increase_minutes") or 0))
     new_baseline = baseline
@@ -1384,7 +1386,7 @@ def setup_telegram(config: dict) -> None:
         say(f"Paired with {name}.")
     config.update(telegram_bot_token=token, telegram_chat_id=chat_id)
     setup_bot_photo(config)
-    if not send_telegram(config, "\u2705 Oura stress alerts will be sent to this chat."):
+    if not send_telegram(config, f"\u2705 {PRODUCT_NAME} will send stress alerts to this chat."):
         raise AppError("Could not send a message to that chat. Check the bot and try again.")
     if interactive() and not ask_yes("We sent you a Telegram message. Did it arrive?"):
         raise AppError("The message did not arrive. Run setup again.")
@@ -1575,7 +1577,8 @@ def setup_oura(paths: Paths, config: dict) -> None:
             and ask_yes("Your Oura app details are already saved. Keep them?"))
     if not keep:
         say(f"1. Open {OURA_APPS_URL} and log in with your Oura account.")
-        say("2. Create a new application. Enter a name, description and contact email.")
+        say(f"2. Create a new application named {PRODUCT_NAME} (keep \"Oura\" out of the name).")
+        say("   Enter a description and contact email.")
         say("   For Website, Privacy Policy and Terms of Service, a personal app can use:")
         say(f"   {PROJECT_URL}")
         say(f"3. Redirect URI must be exactly:  {redirect_uri(port)}")
@@ -1731,7 +1734,7 @@ def windows_task_xml(pythonw: str, script: Path, data_dir: Path, interval: int,
         return element
 
     info = node(root, "RegistrationInfo")
-    node(info, "Description", "Oura stress alerts on Telegram")
+    node(info, "Description", f"{PRODUCT_NAME}: Telegram stress alerts")
     node(info, "Source", WINDOWS_TASK_SOURCE)
     triggers = node(root, "Triggers")
     trigger = node(triggers, "TimeTrigger")
@@ -1905,11 +1908,11 @@ def _systemd_quote(value: str, exec_line: bool = True) -> str:
 
 def systemd_units(python: str, script: Path, data_dir: Path, interval_minutes: int) -> Tuple[str, str]:
     environment = _systemd_quote("OURA_STRESS_HOME=" + str(data_dir), exec_line=False)
-    service = (f"[Unit]\nDescription=Oura stress alerts on Telegram\n\n"
+    service = (f"[Unit]\nDescription={PRODUCT_NAME}: Telegram stress alerts\n\n"
                f"[Service]\nType=oneshot\n"
                f"Environment={environment}\n"
                f"ExecStart={_systemd_quote(python)} {_systemd_quote(str(script))} check\n")
-    timer = (f"[Unit]\nDescription=Run Oura stress alerts every {interval_minutes} minutes\n\n"
+    timer = (f"[Unit]\nDescription=Run {PRODUCT_NAME} every {interval_minutes} minutes\n\n"
              f"[Timer]\nOnBootSec=1min\nOnUnitActiveSec={interval_minutes}min\n"
              f"Unit={SYSTEMD_UNIT}.service\n\n[Install]\nWantedBy=timers.target\n")
     return service, timer
@@ -2178,7 +2181,7 @@ def safe_schedule_description() -> str:
 # --------------------------------------------------------------------------
 
 def cmd_setup(paths: Paths, args) -> int:
-    say("Oura stress alerts on Telegram: setup")
+    say(f"{PRODUCT_NAME} setup")
     say("Your keys stay on this computer, in:")
     say(f"  {paths.root}")
     config = load_config(paths)
@@ -2256,7 +2259,7 @@ def cmd_test(paths: Paths, args) -> int:
     config = load_config(paths)
     if not config.get("telegram_bot_token"):
         raise AppError(f"Run setup first: {command_for('setup', paths)}")
-    ok = send_telegram(config, "\U0001F9EA Test from Oura stress alerts. Telegram works.")
+    ok = send_telegram(config, f"\U0001F9EA Test from {PRODUCT_NAME}. Telegram works.")
     say("Telegram: test message sent." if ok else "Telegram: sending failed (see above).")
     read_stress_now(paths, config)
     return 0 if ok else 1

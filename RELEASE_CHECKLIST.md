@@ -19,7 +19,7 @@ not sufficient for this acceptance check.
   and any point where they were unsure what to do next.
 - Put Telegram in the background before the phone test: lock the iPhone to test
   Lock Screen alerts, or go to the Home Screen to test Banners. Confirm the iOS
-  notification says "Test from Oura stress alerts. Telegram works." An in-app
+  notification says "Test from Stress Nudge. Telegram works." An in-app
   Telegram banner does not pass. Check real-alert wording separately when an
   actual stress alert arrives. The README demo uses real screenshots from one
   manually triggered alert; it does not replace this person's real-device check.
@@ -101,7 +101,7 @@ xhigh effort and reported standard speed, scoring 91/100 with no blocking findin
 Its two low-severity documentation findings were resolved by recording this result
 and cleaning up the historical proposal. Those text corrections were checked by
 the host after review. The reviewed code and media were unchanged. See the
-[v0.2.2 release](https://github.com/farhankhalaf/oura-stress-notification/releases/tag/v0.2.2)
+[v0.2.2 release](https://github.com/farhankhalaf/stress-nudge/releases/tag/v0.2.2)
 for its final commit and CI result.
 
 The first publication CI run exposed an inherited callback-test race on macOS:

@@ -35,6 +35,8 @@ short-headline wording. The Home Screen and Oura captures retain their 14:12 and
 14:15 clocks. This edited sequence compresses separate captures; their times and
 the example graph are not a measurement of detection or delivery delay. The demo
 does not imply an instant Oura reading or alert.
+The walkthrough was captured before the project was renamed to Stress Nudge, so
+its notification shows the bot's earlier suggested name, Oura Stress Alerts.
 The original preview spacing was retained, so the gap below the headline is wider
 and less body text is visible than a newly rendered alert may show.
 
@@ -96,17 +98,18 @@ each visible tap, both app transitions and the loop seam.
 
 - [MP4 walkthrough](images/demo-walkthrough.mp4): H.264, yuv420p, 652 x 1380,
   15 fps, 259 frames, 17.266667 seconds, no audio, fast-start playback.
-- [Social preview](images/social-preview.png): 1280 x 640, 166,631 bytes, intended
+- [Social preview](images/social-preview.png): 1280 x 640, 162,582 bytes, intended
   for the GitHub repository link preview. It combines the existing generated ring
-  avatar with the edited real notification crop. It is labeled an unofficial tool
-  and an edited demo. No new Oura UI or reading was generated.
+  avatar with [a copy of the notification crop](images/social-notification.png)
+  whose bot name was edited to Stress Nudge. It is labeled unofficial and an edited
+  demo. No new Oura UI or reading was generated.
 
 The current MP4 and GIF use the same source frames and 4.67-second clean notification
 hold, with dark outer margins in the MP4. The tiny duration difference comes from
 GIF centisecond rounding. This example-data revision is available as
-[demo-first-stress.mp4](https://github.com/farhankhalaf/oura-stress-notification/releases/download/v0.2.2/demo-first-stress.mp4)
+[demo-first-stress.mp4](https://github.com/farhankhalaf/stress-nudge/releases/download/v0.2.2/demo-first-stress.mp4)
 in the beta downloads. The original release MP4 and tagged source archive retain
-the earlier captured readings for reproducibility. The social preview is unchanged.
+the earlier captured readings for reproducibility.
 
 After rendering the walkthrough's source frames as above, export the MP4 with
 ffmpeg 8.1 (libx264):
@@ -138,12 +141,15 @@ Pass the two font files as arguments: Arial.ttf and Arial Bold.ttf. The renderer
 pins their SHA-256 hashes to `525979822591a3447cfc49d943d6f7683508e25543407871c0ed8fed05fd2bd9`
 and `d72db21f9242aedd6b917d8549ad5921766b24d5f8d0becfda2ff4c620b3c2e0` respectively.
 The original fonts are not bundled; the committed outlined SVG is the portable
-render source. None of these development dependencies is needed to run the tool.
+render source. The social-notification.png copy replaces only the bot name in
+walkthrough/notification.png: the title area was filled by vertical interpolation
+of the surrounding blurred background, then "Stress Nudge" was drawn in the macOS
+system font (SF Pro, Semibold, 45.5 px, 1.5 px tracking) on the original baseline. None of these development dependencies is needed to run the tool.
 
 Current media and original release asset SHA-256:
 
 ```text
-social-preview.png     8635d201611ef6b0d9c3bb435a92e2864cc47d5f229bff82809e6c104b98c551
+social-preview.png     3f9f4c7b30bf037f22aa4e8c84ecb08954ab2ee8badbbeda8ac3460ddd95dd23
 demo-walkthrough.gif   48337b5dcbb8613fbc95a6e6faecc78e1beb0bff6631ce5d9ab4a16abb6cc139
 demo-first-stress.mp4 (also the repo docs/images/demo-walkthrough.mp4)
                       853199ca747f30595eeca5cbaf268bb44fc5f893fb5b14d6c22b528ed4a9425a
@@ -155,6 +161,7 @@ original v0.2.2 release demo-walkthrough.mp4
 
 The [older realistic mockup](images/demo-realistic.gif) and
 [illustrated mockup](images/demo-illustrated.gif) use synthetic data and UI.
-They are retained as earlier artwork, not the README demo. An earlier stacked
+They are retained as earlier artwork, not the README demo, and predate the
+rename, so they show the bot's earlier suggested name. An earlier stacked
 explainer built from unedited screenshots of a real day's stress readings was
 removed so the repository does not publish that personal data.

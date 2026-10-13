@@ -1,11 +1,11 @@
-# Oura stress notification
+# Stress Nudge
 
-A gentle push notification on your iPhone when Oura records more high stress. Free and open source.
+A gentle push notification on your iPhone when Oura records more high stress. Works with Oura Ring. Free and open source. Not affiliated with, endorsed by or sponsored by Oura.
 
 Paste this into an agent with access to your computer:
 
 ```text
-Set up https://github.com/farhankhalaf/oura-stress-notification for me. Follow its AGENTS.md.
+Set up https://github.com/farhankhalaf/stress-nudge for me. Follow its AGENTS.md.
 ```
 
 <p align="center">
