@@ -204,7 +204,7 @@ python3 oura_stress_telegram.py settings --min-increase 15
 
 ## Project status
 
-Version 0.2.2 is an early beta with a silent first-reading baseline, a default ring
+Version 0.2.3 is an early beta (0.2.2 plus the rename to Stress Nudge) with a silent first-reading baseline, a default ring
 avatar, and experimental native Windows support. The new baseline behavior has
 automated coverage only. Live Windows account setup, normal-user installation,
 sign-out/sign-in and Windows-to-phone delivery have not been tested. Automated
