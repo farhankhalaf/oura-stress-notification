@@ -153,7 +153,8 @@ original v0.2.2 release demo-walkthrough.mp4
 
 ## Earlier versions
 
-The [stacked real-screenshot explainer](images/demo-real.gif) was replaced because
-it did not show the requested phone walkthrough. The [older realistic mockup](images/demo-realistic.gif)
-and [illustrated mockup](images/demo-illustrated.gif) use synthetic data and UI.
-They are retained as earlier artwork, not the README demo.
+The [older realistic mockup](images/demo-realistic.gif) and
+[illustrated mockup](images/demo-illustrated.gif) use synthetic data and UI.
+They are retained as earlier artwork, not the README demo. An earlier stacked
+explainer built from unedited screenshots of a real day's stress readings was
+removed so the repository does not publish that personal data.
