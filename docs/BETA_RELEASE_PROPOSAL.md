@@ -1,7 +1,7 @@
 # Beta release proposal: 0.2.2
 
 Historical plan for the beta release, starting from commit `6b139d9`.
-See [RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md) and the [release](https://github.com/fkb032/oura-stress-notification/releases/tag/v0.2.2)
+See [RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md) and the [release](https://github.com/farhankhalaf/oura-stress-notification/releases/tag/v0.2.2)
 for validation results and the published revision.
 
 ## Goal

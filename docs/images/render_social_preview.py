@@ -81,7 +81,7 @@ def main():
         text("A gentle nudge when Oura", 63, 382, 27, "#bac8c8"),
         text("records more high stress.", 63, 421, 27, "#bac8c8"),
         text("UNOFFICIAL PERSONAL TOOL", 63, 539, 15, "#9bb8ae"),
-        text("fkb032/oura-stress-notification", 63, 577, 21, "#dce7e1"),
+        text("farhankhalaf/oura-stress-notification", 63, 577, 21, "#dce7e1"),
         notice,
         text("DELIVERED THROUGH TELEGRAM", 738, 184, 18, "#b9d5c9", True),
         text("Edited iPhone demo", 882, 494, 16, "#a0b4b3"),

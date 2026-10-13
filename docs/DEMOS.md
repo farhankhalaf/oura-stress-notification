@@ -96,7 +96,7 @@ each visible tap, both app transitions and the loop seam.
 
 - [MP4 walkthrough](images/demo-walkthrough.mp4): H.264, yuv420p, 652 x 1380,
   15 fps, 259 frames, 17.266667 seconds, no audio, fast-start playback.
-- [Social preview](images/social-preview.png): 1280 x 640, 166,157 bytes, intended
+- [Social preview](images/social-preview.png): 1280 x 640, 166,631 bytes, intended
   for the GitHub repository link preview. It combines the existing generated ring
   avatar with the edited real notification crop. It is labeled an unofficial tool
   and an edited demo. No new Oura UI or reading was generated.
@@ -104,7 +104,7 @@ each visible tap, both app transitions and the loop seam.
 The current MP4 and GIF use the same source frames and 4.67-second clean notification
 hold, with dark outer margins in the MP4. The tiny duration difference comes from
 GIF centisecond rounding. This example-data revision is available as
-[demo-first-stress.mp4](https://github.com/fkb032/oura-stress-notification/releases/download/v0.2.2/demo-first-stress.mp4)
+[demo-first-stress.mp4](https://github.com/farhankhalaf/oura-stress-notification/releases/download/v0.2.2/demo-first-stress.mp4)
 in the beta downloads. The original release MP4 and tagged source archive retain
 the earlier captured readings for reproducibility. The social preview is unchanged.
 
@@ -143,7 +143,7 @@ render source. None of these development dependencies is needed to run the tool.
 Current media and original release asset SHA-256:
 
 ```text
-social-preview.png     1606a12af7949d1559b6a426172697a730bc30f96085c78ab2c9e437f66c8b49
+social-preview.png     8635d201611ef6b0d9c3bb435a92e2864cc47d5f229bff82809e6c104b98c551
 demo-walkthrough.gif   48337b5dcbb8613fbc95a6e6faecc78e1beb0bff6631ce5d9ab4a16abb6cc139
 demo-first-stress.mp4 (also the repo docs/images/demo-walkthrough.mp4)
                       853199ca747f30595eeca5cbaf268bb44fc5f893fb5b14d6c22b528ed4a9425a

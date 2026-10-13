@@ -5,7 +5,7 @@ A gentle push notification on your iPhone when Oura records more high stress. Fr
 Paste this into an agent with access to your computer:
 
 ```text
-Set up https://github.com/fkb032/oura-stress-notification for me. Follow its AGENTS.md.
+Set up https://github.com/farhankhalaf/oura-stress-notification for me. Follow its AGENTS.md.
 ```
 
 <p align="center">

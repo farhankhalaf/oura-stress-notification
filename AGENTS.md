@@ -34,8 +34,8 @@ If Python is missing on Windows, guide the person through the [Python install ma
 
 Put the project in a permanent folder such as `~/oura-stress-notification` (on Windows, a folder named `oura-stress-notification` under their user profile). If it already exists, inspect and reuse it without overwriting local changes.
 
-- If Git is already available, clone `https://github.com/fkb032/oura-stress-notification.git` there.
-- If Git is unavailable, download `https://github.com/fkb032/oura-stress-notification/archive/refs/heads/main.zip` and extract it there using available download/archive tools. The person does not need to install Git.
+- If Git is already available, clone `https://github.com/farhankhalaf/oura-stress-notification.git` there.
+- If Git is unavailable, download `https://github.com/farhankhalaf/oura-stress-notification/archive/refs/heads/main.zip` and extract it there using available download/archive tools. The person does not need to install Git.
 
 Read [SETUP.md](SETUP.md) for requirements and reference before continuing. Do not run the release checklist or fault-injection tests during a person's installation.
 
@@ -84,9 +84,9 @@ Provide these values so they do not have to invent them:
 | Display Name | `Oura stress alerts` |
 | Description | `Personal Telegram alerts when Oura records more high stress.` |
 | Contact Email | Their own email address |
-| Website | `https://github.com/fkb032/oura-stress-notification` |
-| Privacy Policy | `https://github.com/fkb032/oura-stress-notification` |
-| Terms of Service | `https://github.com/fkb032/oura-stress-notification` |
+| Website | `https://github.com/farhankhalaf/oura-stress-notification` |
+| Privacy Policy | `https://github.com/farhankhalaf/oura-stress-notification` |
+| Terms of Service | `https://github.com/farhankhalaf/oura-stress-notification` |
 | Redirect URIs | `http://localhost:8765/callback` |
 | Scopes | Select **Daily** |
 

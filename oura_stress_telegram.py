@@ -51,7 +51,7 @@ APP = "oura-stress-telegram"
 VERSION = "0.2.2"
 SCRIPT_NAME = "oura_stress_telegram.py"
 BOT_PHOTO_NAME = "bot-avatar.jpg"
-PROJECT_URL = "https://github.com/fkb032/oura-stress-notification"
+PROJECT_URL = "https://github.com/farhankhalaf/oura-stress-notification"
 
 OURA_APPS_URL = "https://developer.ouraring.com/applications"
 OURA_AUTHORIZE_URL = "https://cloud.ouraring.com/oauth/authorize"
@@ -1600,6 +1600,7 @@ def setup_oura(paths: Paths, config: dict) -> None:
 # Background schedule
 # --------------------------------------------------------------------------
 
+# Keep this legacy identifier stable so existing Windows tasks remain manageable.
 WINDOWS_TASK_SOURCE = "https://github.com/fkb032/oura-stress-notification"
 WINDOWS_TASK_LIMIT_SECONDS = 600
 TASK_XML_NAMESPACE = "http://schemas.microsoft.com/windows/2004/02/mit/task"
