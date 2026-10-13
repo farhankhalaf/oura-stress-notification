@@ -113,7 +113,7 @@ python3 oura_stress_telegram.py setup
 
 Setup walks you through three parts:
 
-- **Telegram.** In Telegram, message **@BotFather**, send `/newbot`, choose a name and a username ending in `bot`. Paste the token it gives you into setup. Then open your new bot, press **Start**, and send it the 6 character pairing code that setup shows you.
+- **Telegram.** In Telegram, message **@BotFather**, send `/newbot`, name it `Stress Nudge` (keep "Oura" out of the name) and choose a username ending in `bot`. Paste the token it gives you into setup. Then open your new bot, press **Start**, and send it the 6 character pairing code that setup shows you.
 - **Oura.** Go to [developer.ouraring.com/applications](https://developer.ouraring.com/applications), log in, and create a new application. Name it `Stress Nudge` (keep "Oura" out of the name), then add a description and contact email. For a personal app, use `https://github.com/farhankhalaf/stress-nudge` for Website, Privacy Policy and Terms of Service. Select **Daily** under Scopes. Set the **Redirect URI** to exactly:
 
   ```text
@@ -146,6 +146,11 @@ verify `status` and the scheduled check. Existing alert history is preserved;
 installation verification can send a catch-up alert, even during quiet hours.
 If automatic checks were intentionally removed, leave them off unless you want
 to enable them again. Agent-specific steps are in [AGENTS.md](AGENTS.md#update-an-existing-installation).
+
+If you set this up before the rename to Stress Nudge, rename a Telegram bot or
+Oura developer app whose name contains "Oura": send `/setname` to @BotFather for
+the bot, and edit the app's display name at developer.ouraring.com if the form
+allows it. Keep the existing app and its keys; saved settings are unaffected.
 
 Downloads and ordinary updates use the latest `main` branch. [Release tags](https://github.com/farhankhalaf/stress-nudge/releases)
 provide fixed snapshots when you want a specific version. Extract ZIP updates into

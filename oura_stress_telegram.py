@@ -50,7 +50,7 @@ from typing import Dict, Iterator, Optional, Tuple
 # APP names saved data, the installed copy and scheduler jobs; keep it stable.
 APP = "oura-stress-telegram"
 PRODUCT_NAME = "Stress Nudge"
-VERSION = "0.2.2"
+VERSION = "0.2.3"
 SCRIPT_NAME = "oura_stress_telegram.py"
 BOT_PHOTO_NAME = "bot-avatar.jpg"
 PROJECT_URL = "https://github.com/farhankhalaf/stress-nudge"
@@ -1362,7 +1362,7 @@ def setup_telegram(config: dict) -> None:
             setup_bot_photo(config)
             return
     say("1. In Telegram, open a chat with @BotFather (the official bot with a blue check).")
-    say("2. Send /newbot, pick any name, then a username ending in 'bot'.")
+    say(f"2. Send /newbot, name it {PRODUCT_NAME} (keep \"Oura\" out of the name), then a username ending in 'bot'.")
     say("3. BotFather replies with a token that looks like 123456789:ABCdef...")
     token = ask_secret("Paste the bot token", "TELEGRAM_BOT_TOKEN")
     remember_secret(token)

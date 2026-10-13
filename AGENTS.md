@@ -154,6 +154,13 @@ Provide the exact command to stop the job, using the chosen Python and an absolu
    verification passed. A green status alone does not prove the code was updated.
    Existing baselines remain intact; verification may send a real stress alert,
    including a catch-up for today, even during quiet hours.
+5. Earlier versions suggested the names "Oura Stress Alerts" for the Telegram
+   bot and "Oura stress alerts" for the Oura developer app. If either name
+   contains "Oura", guide the person to rename it to Stress Nudge. Telegram: in
+   @BotFather, send `/setname`, choose their bot and enter the new name. Oura:
+   at developer.ouraring.com, edit the application's display name if the form
+   allows it. Keep the existing app, Client ID and Client Secret; do not create
+   a second app only to change its name. Neither rename affects saved settings.
 
 If the installed command or data path cannot be determined, resolve that before
 replacing an active job. Do not guess a new data folder and disconnect the person.
