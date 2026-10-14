@@ -59,7 +59,7 @@ If setup already has their Telegram or Oura app details, keep them unless the er
 Open [Telegram Web](https://web.telegram.org/) or Telegram Desktop on the computer used for setup. Have the person sign in themselves, using the phone's QR-code login if offered. This puts BotFather and the terminal on the same computer so they can copy the token directly into the hidden prompt without retyping it or sharing it in AI chat.
 
 1. Have them open the official [@BotFather](https://t.me/BotFather) in Telegram and send `/newbot`.
-2. Suggest the display name **Stress Nudge**. They choose an available username ending in `bot`; explain that the username must be unique if their first choice is taken.
+2. They choose a display name and an available username ending in `bot`. Explain that the username must be unique if their first choice is taken.
 3. They copy the token from BotFather on the computer and paste it into the hidden setup prompt in their terminal. Explain that no characters appear while pasting; press Enter once after pasting.
 4. They open their new bot, press **Start**, and send the six-character pairing code shown by setup as a normal private message.
 5. Confirm the bot's pairing confirmation arrives. That verifies the chat connection; the phone notification is checked separately below.
@@ -77,11 +77,10 @@ the delivering app.
 
 Have them sign in at <https://developer.ouraring.com/applications> and choose **Create New**. Explain that Oura calls this an "application", but they are only filling in a connection form.
 
-Provide these values so they do not have to invent them:
+They choose the display name. Provide these other values so they do not have to invent them:
 
 | Field | Value |
 |---|---|
-| Display Name | `Stress Nudge` (keep "Oura" out of the app name) |
 | Description | `Personal Telegram alerts when Oura records more high stress.` |
 | Contact Email | Their own email address |
 | Website | `https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress` |
@@ -154,13 +153,6 @@ Provide the exact command to stop the job, using the chosen Python and an absolu
    verification passed. A green status alone does not prove the code was updated.
    Existing baselines remain intact; verification may send a real stress alert,
    including a catch-up for today, even during quiet hours.
-5. Earlier versions suggested the names "Oura Stress Alerts" for the Telegram
-   bot and "Oura stress alerts" for the Oura developer app. If either name
-   contains "Oura", guide the person to rename it to Stress Nudge. Telegram: in
-   @BotFather, send `/setname`, choose their bot and enter the new name. Oura:
-   at developer.ouraring.com, edit the application's display name if the form
-   allows it. Keep the existing app, Client ID and Client Secret; do not create
-   a second app only to change its name. Neither rename affects saved settings.
 
 If the installed command or data path cannot be determined, resolve that before
 replacing an active job. Do not guess a new data folder and disconnect the person.
