@@ -34,8 +34,8 @@ If Python is missing on Windows, guide the person through the [Python install ma
 
 Put the project in a permanent folder such as `~/stress-nudge` (on Windows, a folder named `stress-nudge` under their user profile). Earlier installations may use `oura-stress-notification` or `oura-stress-telegram` instead. If any of these folders already exists, inspect and reuse it without overwriting local changes.
 
-- If Git is already available, clone `https://github.com/farhankhalaf/stress-nudge.git` there.
-- If Git is unavailable, download `https://github.com/farhankhalaf/stress-nudge/archive/refs/heads/main.zip` and extract it there using available download/archive tools. The person does not need to install Git.
+- If Git is already available, clone `https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress.git` there.
+- If Git is unavailable, download `https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress/archive/refs/heads/main.zip` and extract it there using available download/archive tools. The person does not need to install Git.
 
 Read [SETUP.md](SETUP.md) for requirements and reference before continuing. Do not run the release checklist or fault-injection tests during a person's installation.
 
@@ -84,9 +84,9 @@ Provide these values so they do not have to invent them:
 | Display Name | `Stress Nudge` (keep "Oura" out of the app name) |
 | Description | `Personal Telegram alerts when Oura records more high stress.` |
 | Contact Email | Their own email address |
-| Website | `https://github.com/farhankhalaf/stress-nudge` |
-| Privacy Policy | `https://github.com/farhankhalaf/stress-nudge` |
-| Terms of Service | `https://github.com/farhankhalaf/stress-nudge` |
+| Website | `https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress` |
+| Privacy Policy | `https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress` |
+| Terms of Service | `https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress` |
 | Redirect URIs | `http://localhost:8765/callback` |
 | Scopes | Select **Daily** |
 

@@ -58,7 +58,7 @@ Windows support is experimental. A live Windows setup with Oura and Telegram has
 not been tested. The program is designed for Windows 10/11 and uses the built-in
 Task Scheduler while you are signed in and the computer is awake.
 
-1. Download the [project ZIP](https://github.com/farhankhalaf/stress-nudge/archive/refs/heads/main.zip), unzip it and put the folder in your user folder.
+1. Download the [project ZIP](https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress/archive/refs/heads/main.zip), unzip it and put the folder in your user folder.
 2. Open **PowerShell** from the Start menu, using an ordinary window rather than "Run as administrator". Keep the same Windows account throughout setup.
 3. Check `python --version`. If Python is missing, install the [Python install manager](https://www.python.org/downloads/), then run that command again. Use a standard runtime, not the older Microsoft Store Python package. Existing python.org installations are also supported. Python 3.9 or newer is required.
 4. Go to the unzipped folder, for example `cd "$env:USERPROFILE\stress-nudge"`, and run:
@@ -85,10 +85,10 @@ package folders before asking for credentials; use the install-manager runtime.
 
 ### Mac and Linux
 
-**1. Get the code.** Download the [project ZIP](https://github.com/farhankhalaf/stress-nudge/archive/refs/heads/main.zip). Unzip it, rename the folder to `stress-nudge`, and move it into your home folder (on a Mac, the folder with your name and the house icon). Or, if you know git:
+**1. Get the code.** Download the [project ZIP](https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress/archive/refs/heads/main.zip). Unzip it, rename the folder to `stress-nudge`, and move it into your home folder (on a Mac, the folder with your name and the house icon). Or, if you know git:
 
 ```bash
-git clone https://github.com/farhankhalaf/stress-nudge.git ~/stress-nudge
+git clone https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress.git ~/stress-nudge
 ```
 
 **2. Open Terminal** (on a Mac: press Cmd+Space, type "Terminal", press Enter) and go to the folder:
@@ -114,7 +114,7 @@ python3 oura_stress_telegram.py setup
 Setup walks you through three parts:
 
 - **Telegram.** In Telegram, message **@BotFather**, send `/newbot`, name it `Stress Nudge` (keep "Oura" out of the name) and choose a username ending in `bot`. Paste the token it gives you into setup. Then open your new bot, press **Start**, and send it the 6 character pairing code that setup shows you.
-- **Oura.** Go to [developer.ouraring.com/applications](https://developer.ouraring.com/applications), log in, and create a new application. Name it `Stress Nudge` (keep "Oura" out of the name), then add a description and contact email. For a personal app, use `https://github.com/farhankhalaf/stress-nudge` for Website, Privacy Policy and Terms of Service. Select **Daily** under Scopes. Set the **Redirect URI** to exactly:
+- **Oura.** Go to [developer.ouraring.com/applications](https://developer.ouraring.com/applications), log in, and create a new application. Name it `Stress Nudge` (keep "Oura" out of the name), then add a description and contact email. For a personal app, use `https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress` for Website, Privacy Policy and Terms of Service. Select **Daily** under Scopes. Set the **Redirect URI** to exactly:
 
   ```text
   http://localhost:8765/callback
@@ -152,7 +152,7 @@ Oura developer app whose name contains "Oura": send `/setname` to @BotFather for
 the bot, and edit the app's display name at developer.ouraring.com if the form
 allows it. Keep the existing app and its keys; saved settings are unaffected.
 
-Downloads and ordinary updates use the latest `main` branch. [Release tags](https://github.com/farhankhalaf/stress-nudge/releases)
+Downloads and ordinary updates use the latest `main` branch. [Release tags](https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress/releases)
 provide fixed snapshots when you want a specific version. Extract ZIP updates into
 a new permanent folder rather than overwriting an existing one.
 
@@ -231,7 +231,7 @@ both callbacks, background startup, token refresh and lost-response recovery.
 Later recovery changes and the platform work have automated coverage; the live
 OAuth flow was not repeated after them. Tests run on macOS, Linux and Windows.
 Details and remaining acceptance checks are in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
-Please [open an issue](https://github.com/farhankhalaf/stress-nudge/issues)
+Please [open an issue](https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress/issues)
 if anything is confusing or broken.
 
 ## For developers

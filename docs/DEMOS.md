@@ -107,7 +107,7 @@ each visible tap, both app transitions and the loop seam.
 The current MP4 and GIF use the same source frames and 4.67-second clean notification
 hold, with dark outer margins in the MP4. The tiny duration difference comes from
 GIF centisecond rounding. This example-data revision is available as
-[demo-first-stress.mp4](https://github.com/farhankhalaf/stress-nudge/releases/download/v0.2.2/demo-first-stress.mp4)
+[demo-first-stress.mp4](https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress/releases/download/v0.2.2/demo-first-stress.mp4)
 in the beta downloads. The original release MP4 and tagged source archive retain
 the earlier captured readings for reproducibility.
 

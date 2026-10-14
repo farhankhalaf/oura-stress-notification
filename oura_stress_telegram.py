@@ -53,7 +53,7 @@ PRODUCT_NAME = "Stress Nudge"
 VERSION = "0.2.3"
 SCRIPT_NAME = "oura_stress_telegram.py"
 BOT_PHOTO_NAME = "bot-avatar.jpg"
-PROJECT_URL = "https://github.com/farhankhalaf/stress-nudge"
+PROJECT_URL = "https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress"
 
 OURA_APPS_URL = "https://developer.ouraring.com/applications"
 OURA_AUTHORIZE_URL = "https://cloud.ouraring.com/oauth/authorize"
