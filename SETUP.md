@@ -61,7 +61,7 @@ Task Scheduler while you are signed in and the computer is awake.
 1. Download the [project ZIP](https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress/archive/refs/heads/main.zip), unzip it and put the folder in your user folder.
 2. Open **PowerShell** from the Start menu, using an ordinary window rather than "Run as administrator". Keep the same Windows account throughout setup.
 3. Check `python --version`. If Python is missing, install the [Python install manager](https://www.python.org/downloads/), then run that command again. Use a standard runtime, not the older Microsoft Store Python package. Existing python.org installations are also supported. Python 3.9 or newer is required.
-4. Go to the unzipped folder, for example `cd "$env:USERPROFILE\stress-nudge"`, and run:
+4. Go to the unzipped folder, for example `cd "$env:USERPROFILE\oura-stress-alerts"`, and run:
 
    ```powershell
    python .\oura_stress_telegram.py setup
@@ -85,16 +85,16 @@ package folders before asking for credentials; use the install-manager runtime.
 
 ### Mac and Linux
 
-**1. Get the code.** Download the [project ZIP](https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress/archive/refs/heads/main.zip). Unzip it, rename the folder to `stress-nudge`, and move it into your home folder (on a Mac, the folder with your name and the house icon). Or, if you know git:
+**1. Get the code.** Download the [project ZIP](https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress/archive/refs/heads/main.zip). Unzip it, rename the folder to `oura-stress-alerts`, and move it into your home folder (on a Mac, the folder with your name and the house icon). Or, if you know git:
 
 ```bash
-git clone https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress.git ~/stress-nudge
+git clone https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress.git ~/oura-stress-alerts
 ```
 
 **2. Open Terminal** (on a Mac: press Cmd+Space, type "Terminal", press Enter) and go to the folder:
 
 ```bash
-cd ~/stress-nudge
+cd ~/oura-stress-alerts
 ```
 
 **3. Check Python:**
