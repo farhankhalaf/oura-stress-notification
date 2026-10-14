@@ -18,7 +18,7 @@ Open **Settings > Notifications > Telegram**, turn on **Allow Notifications**, a
 
 Open your new bot in Telegram and press **Start** during pairing. Then put Telegram in the background: **lock your iPhone** to test Lock Screen alerts, or **go to the Home Screen** to test Banners. Have your agent send the test.
 
-Expect **🧪 Test from Stress Nudge. Telegram works.** Confirm that it appears on the lock screen or as an iOS banner while Telegram is in the background. An in-app Telegram banner or a message on the computer does not pass this check. The [README demo](README.md) shows the short stress headline used after a zero daily baseline. With a positive baseline, alerts say **More high stress recorded** and include added minutes, including the first alert after a mid-day setup.
+Expect **🧪 Test from Oura Stress Alerts. Telegram works.** Confirm that it appears on the lock screen or as an iOS banner while Telegram is in the background. An in-app Telegram banner or a message on the computer does not pass this check. The [README demo](README.md) shows the short stress headline used after a zero daily baseline. With a positive baseline, alerts say **More high stress recorded** and include added minutes, including the first alert after a mid-day setup.
 
 ## After setup
 
@@ -26,7 +26,7 @@ Expect **🧪 Test from Stress Nudge. Telegram works.** Confirm that it appears 
 - A new installation silently records its first valid stress total as a starting point. This happens once. If there is no data yet, it waits for the first valid reading, even on a later day. A measured zero counts. Normal new-day alerts resume from zero each day after initialization.
 - Quiet hours default to **midnight to 8 AM**. Ask your agent to change them or make alerts less frequent.
 - Keep the Oura app syncing your ring. Alerts describe **what Oura recorded**, with a delay; they are not an instant stress alarm.
-- Ask your agent **"Stop Stress Nudge"** to remove the background job. Your saved connection can be kept for later.
+- Ask your agent **"Stop Oura Stress Alerts"** to remove the background job. Your saved connection can be kept for later.
 
 ### Bot profile picture
 
@@ -113,8 +113,8 @@ python3 oura_stress_telegram.py setup
 
 Setup walks you through three parts:
 
-- **Telegram.** In Telegram, message **@BotFather**, send `/newbot`, choose a display name and a username ending in `bot`. Paste the token it gives you into setup. Then open your new bot, press **Start**, and send it the 6 character pairing code that setup shows you.
-- **Oura.** Go to [developer.ouraring.com/applications](https://developer.ouraring.com/applications), log in, and create a new application. Choose a display name, then add a description and contact email. For a personal app, use `https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress` for Website, Privacy Policy and Terms of Service. Select **Daily** under Scopes. Set the **Redirect URI** to exactly:
+- **Telegram.** In Telegram, message **@BotFather**, send `/newbot`, name it `Oura Stress Alerts`, and choose a username ending in `bot`. Paste the token it gives you into setup. Then open your new bot, press **Start**, and send it the 6 character pairing code that setup shows you.
+- **Oura.** Go to [developer.ouraring.com/applications](https://developer.ouraring.com/applications), log in, and create a new application. Name it `Oura Stress Alerts`, then add a description and contact email. For a personal app, use `https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress` for Website, Privacy Policy and Terms of Service. Select **Daily** under Scopes. Set the **Redirect URI** to exactly:
 
   ```text
   http://localhost:8765/callback
@@ -199,7 +199,7 @@ python3 oura_stress_telegram.py settings --min-increase 15
 
 ## Project status
 
-Version 0.2.3 is an early beta (0.2.2 plus the rename to Stress Nudge) with a silent first-reading baseline, a default ring
+Version 0.2.3 is an early beta. The public name is Oura Stress Alerts. It has a silent first-reading baseline, a default ring
 avatar, and experimental native Windows support. The new baseline behavior has
 automated coverage only. Live Windows account setup, normal-user installation,
 sign-out/sign-in and Windows-to-phone delivery have not been tested. Automated
@@ -231,7 +231,7 @@ if anything is confusing or broken.
 
 ## For developers
 
-One file, Python standard library only, Python 3.9+. The project was renamed from Oura stress notification to Stress Nudge. The script filename and existing Mac/Linux data and scheduler identifiers retain their original names for compatibility. Windows uses a task name containing the current user SID, so different Windows accounts have separate tasks.
+One file, Python standard library only, Python 3.9+. The public name is Oura Stress Alerts. The script filename and existing Mac/Linux data and scheduler identifiers retain their original names for compatibility. Windows uses a task name containing the current user SID, so different Windows accounts have separate tasks.
 
 ```bash
 python3 -m unittest discover -s tests -v

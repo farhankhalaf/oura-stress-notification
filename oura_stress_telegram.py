@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stress Nudge: Telegram alerts when your Oura Ring records more high stress.
+"""Oura Stress Alerts: Telegram alerts when your Oura Ring records more high stress.
 
 Checks your Oura ring's daytime stress every few minutes and sends you a Telegram
 message when Oura records more time in high stress today.
@@ -49,7 +49,7 @@ from typing import Dict, Iterator, Optional, Tuple
 
 # APP names saved data, the installed copy and scheduler jobs; keep it stable.
 APP = "oura-stress-telegram"
-PRODUCT_NAME = "Stress Nudge"
+PRODUCT_NAME = "Oura Stress Alerts"
 VERSION = "0.2.3"
 SCRIPT_NAME = "oura_stress_telegram.py"
 BOT_PHOTO_NAME = "bot-avatar.jpg"
@@ -1362,7 +1362,7 @@ def setup_telegram(config: dict) -> None:
             setup_bot_photo(config)
             return
     say("1. In Telegram, open a chat with @BotFather (the official bot with a blue check).")
-    say("2. Send /newbot, choose a display name, then a username ending in 'bot'.")
+    say(f"2. Send /newbot, name it {PRODUCT_NAME}, then a username ending in 'bot'.")
     say("3. BotFather replies with a token that looks like 123456789:ABCdef...")
     token = ask_secret("Paste the bot token", "TELEGRAM_BOT_TOKEN")
     remember_secret(token)
@@ -1577,7 +1577,7 @@ def setup_oura(paths: Paths, config: dict) -> None:
             and ask_yes("Your Oura app details are already saved. Keep them?"))
     if not keep:
         say(f"1. Open {OURA_APPS_URL} and log in with your Oura account.")
-        say("2. Create a new application and choose a display name.")
+        say(f"2. Create a new application named {PRODUCT_NAME}.")
         say("   Enter a description and contact email.")
         say("   For Website, Privacy Policy and Terms of Service, a personal app can use:")
         say(f"   {PROJECT_URL}")

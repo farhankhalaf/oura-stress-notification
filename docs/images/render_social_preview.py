@@ -53,11 +53,11 @@ def main():
     regular, bold = fonts
     text = lambda label, x, y, size, color="#f4f4ef", heavy=False: outlined(
         bold if heavy else regular, label, x, y, size, color)
-    notice = data(IMAGE_DIR / "social-notification.png", "image/png")
+    notice = data(IMAGE_DIR / "walkthrough" / "notification.png", "image/png")
     avatar = data(ROOT / "bot-avatar.jpg", "image/jpeg")
     svg = '''<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1280" height="640" viewBox="0 0 1280 640">
-<title>Stress Nudge</title>
-<desc>Stress Nudge: free and open source Telegram alerts when Oura records more high stress. Unofficial and not affiliated with Oura. Edited iPhone notification demo.</desc>
+<title>Oura Stress Alerts</title>
+<desc>Oura Stress Alerts: free and open source Telegram alerts when Oura records more high stress. Unofficial and not affiliated with Oura. Edited iPhone notification demo.</desc>
 <defs><clipPath id="avatar"><circle cx="94" cy="99" r="34"/></clipPath><clipPath id="notice"><rect x="700" y="224" width="522" height="228" rx="38"/></clipPath></defs>
 <rect width="1280" height="640" fill="#0d171b"/>
 <circle cx="1060" cy="325" r="290" fill="#132126"/>
@@ -76,12 +76,12 @@ def main():
 </svg>''' % (
         avatar,
         text("FREE & OPEN SOURCE", 150, 107, 18, "#b9d5c9", True),
-        text("Stress", 60, 235, 72, heavy=True),
-        text("Nudge", 60, 316, 72, heavy=True),
+        text("Oura Stress", 60, 235, 72, heavy=True),
+        text("Alerts", 60, 316, 72, heavy=True),
         text("A gentle nudge when Oura", 63, 382, 27, "#bac8c8"),
         text("records more high stress.", 63, 421, 27, "#bac8c8"),
         text("UNOFFICIAL · NOT AFFILIATED WITH OURA", 63, 539, 15, "#9bb8ae"),
-        text("farhankhalaf/stress-nudge", 63, 577, 21, "#dce7e1"),
+        text("farhankhalaf/push-notifications-for-oura-ring-stress", 63, 577, 21, "#dce7e1"),
         notice,
         text("DELIVERED THROUGH TELEGRAM", 738, 184, 18, "#b9d5c9", True),
         text("Edited iPhone demo", 882, 494, 16, "#a0b4b3"),

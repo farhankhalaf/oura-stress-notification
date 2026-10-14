@@ -19,7 +19,7 @@ not sufficient for this acceptance check.
   and any point where they were unsure what to do next.
 - Put Telegram in the background before the phone test: lock the iPhone to test
   Lock Screen alerts, or go to the Home Screen to test Banners. Confirm the iOS
-  notification says "Test from Stress Nudge. Telegram works." An in-app
+  notification says "Test from Oura Stress Alerts. Telegram works." An in-app
   Telegram banner does not pass. Check real-alert wording separately when an
   actual stress alert arrives. The README demo uses real screenshots from one
   manually triggered alert; it does not replace this person's real-device check.

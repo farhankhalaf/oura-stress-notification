@@ -1,4 +1,4 @@
-# Set up Stress Nudge for this person
+# Set up Oura Stress Alerts for this person
 
 Use this guide for installation or setup requests. For development or review requests, use the [SETUP.md developer section](SETUP.md#for-developers) and [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md); do not start account setup or install a background job unless requested.
 
@@ -59,7 +59,7 @@ If setup already has their Telegram or Oura app details, keep them unless the er
 Open [Telegram Web](https://web.telegram.org/) or Telegram Desktop on the computer used for setup. Have the person sign in themselves, using the phone's QR-code login if offered. This puts BotFather and the terminal on the same computer so they can copy the token directly into the hidden prompt without retyping it or sharing it in AI chat.
 
 1. Have them open the official [@BotFather](https://t.me/BotFather) in Telegram and send `/newbot`.
-2. They choose a display name and an available username ending in `bot`. Explain that the username must be unique if their first choice is taken.
+2. Suggest the display name **Oura Stress Alerts**. They choose an available username ending in `bot`. Explain that the username must be unique if their first choice is taken.
 3. They copy the token from BotFather on the computer and paste it into the hidden setup prompt in their terminal. Explain that no characters appear while pasting; press Enter once after pasting.
 4. They open their new bot, press **Start**, and send the six-character pairing code shown by setup as a normal private message.
 5. Confirm the bot's pairing confirmation arrives. That verifies the chat connection; the phone notification is checked separately below.
@@ -77,10 +77,11 @@ the delivering app.
 
 Have them sign in at <https://developer.ouraring.com/applications> and choose **Create New**. Explain that Oura calls this an "application", but they are only filling in a connection form.
 
-They choose the display name. Provide these other values so they do not have to invent them:
+Provide these values so they do not have to invent them:
 
 | Field | Value |
 |---|---|
+| Display Name | `Oura Stress Alerts` |
 | Description | `Personal Telegram alerts when Oura records more high stress.` |
 | Contact Email | Their own email address |
 | Website | `https://github.com/farhankhalaf/push-notifications-for-oura-ring-stress` |
@@ -117,7 +118,7 @@ Check that `status` shows the connection and installed background checks. A succ
 
 On iPhone, guide them to **Settings > Notifications > Telegram**. Allow notifications and enable **Lock Screen** or **Banners**. Let them choose when message previews appear; do not silently change their privacy preferences. Check Focus or Do Not Disturb if delivery is delayed.
 
-Before sending the test, have them put Telegram in the background: lock the iPhone if Lock Screen alerts are enabled, or go to the Home Screen if testing Banners. Then run `test` and ask whether it appeared on the lock screen or as an iOS banner while Telegram was in the background. Expect **🧪 Test from Stress Nudge. Telegram works.** The README pictures the short stress headline used when the day's previous baseline is zero. Alerts after a positive baseline say **More high stress recorded** and include added minutes; this can be the first alert after setup. Its GIF is an edited phone walkthrough using a real notification, Home Screen and Oura captures, with example stress readings, fictional calendar titles, simulated interactions and the bot's earlier suggested name; it is not a continuous recording or a promise of instant delivery. To view details, open Oura separately and tap Stress; the Telegram notification opens Telegram. An in-app Telegram banner, a chat message or a computer notification does not pass this phone-push check. If phone confirmation is unavailable, explicitly report it as unverified instead of claiming completion.
+Before sending the test, have them put Telegram in the background: lock the iPhone if Lock Screen alerts are enabled, or go to the Home Screen if testing Banners. Then run `test` and ask whether it appeared on the lock screen or as an iOS banner while Telegram was in the background. Expect **🧪 Test from Oura Stress Alerts. Telegram works.** The README pictures the short stress headline used when the day's previous baseline is zero. Alerts after a positive baseline say **More high stress recorded** and include added minutes; this can be the first alert after setup. Its GIF is an edited phone walkthrough using a real notification, Home Screen and Oura captures, with example stress readings, fictional calendar titles and simulated interactions; it is not a continuous recording or a promise of instant delivery. To view details, open Oura separately and tap Stress; the Telegram notification opens Telegram. An in-app Telegram banner, a chat message or a computer notification does not pass this phone-push check. If phone confirmation is unavailable, explicitly report it as unverified instead of claiming completion.
 
 For Linux, verify the actual systemd timer or cron run rather than relying on a successful install command. Cron remains experimental. Explain the logout limitation and the installer's option to keep running after logout.
 

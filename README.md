@@ -1,6 +1,6 @@
-# Stress Nudge
+# Oura Stress Alerts
 
-A gentle push notification on your iPhone when Oura records more high stress. Free and open source. Not affiliated with, endorsed by or sponsored by Oura.
+A gentle push notification on your iPhone when Oura records more high stress. Works with Oura Ring. Free and open source. Not affiliated with, endorsed by or sponsored by Oura.
 
 Paste this into an agent with access to your computer:
 
